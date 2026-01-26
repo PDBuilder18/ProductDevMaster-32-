@@ -1,0 +1,412 @@
+PDBuilder – Product Roadmap Builder Requirements (Final Step Module)
+0) Summary
+Build a Product Roadmap Builder as the final step of PDBuilder that auto-seeds milestones from the user’s PRD/MVP work, lets them refine milestones on a drag‑and‑drop board (Now/Next/Later or Quarterly), and exports/share-syncs to Notion/Jira/PDF/CSV. Gated features align with PDBuilder pricing tiers. Stack targets Replit (Python API + React front end) with Supabase persistence and PostHog analytics.
+
+1) Objectives & Success Criteria
+Objectives
+
+Convert activated users by providing a tangible, investor/mentor‑friendly roadmap deliverable.
+
+Close the loop from Idea → PRD → MVP → Roadmap in a single guided flow.
+
+Enable team/accelerator collaboration via owners, status, and exports.
+
+Success Metrics (60 days)
+
+70% of users who generate a PRD also generate a roadmap.
+
+50% refine ≥1 milestone within first session.
+
+25% export rate (PDF/CSV/Notion/Jira) among activated users.
+
+15% upgrade conversion triggered at export/Notion/Jira sync.
+
+2) In Scope / Out of Scope
+In Scope (v1)
+
+Auto‑generation of initial milestones from PRD/MVP outputs & risks.
+
+Two timeline modes: Now/Next/Later and Quarterly (Q1–Q4).
+
+CRUD on milestones + drag & drop reordering.
+
+Dependencies/labels/status/owner fields.
+
+Exports: PDF, CSV; Integrations: Notion, Jira (push one-way).
+
+Subscription gating by plan tier.
+
+Analytics events and cohort dashboards (Team/Accelerator).
+
+Out of Scope (v1)
+
+Gantt chart with dates and critical path.
+
+Two‑way live sync with PM tools.
+
+Advanced resource capacity planning.
+
+3) User Personas & Primary Jobs-To-Be-Done
+First‑time Founder (solo) – needs a credible, simple roadmap to show advisors/investors.
+
+Accelerator Founder (cohort) – needs a standardized plan mentors can review.
+
+Corporate Intrapreneur – needs a lightweight, time‑boxed plan to hit internal gates.
+
+JTBD: “When I finish my PRD/MVP in PDBuilder, help me convert it into a clear, staged roadmap I can refine and share so I can communicate priorities and get buy‑in.”
+
+4) User Stories (v1)
+As a founder, I want PDBuilder to pre‑fill my roadmap from my PRD/MVP so I’m not starting from scratch.
+
+As a founder, I want to drag milestones between Now/Next/Later to communicate priority.
+
+As a founder, I want to edit titles/descriptions/labels/status/owner quickly inline.
+
+As a founder, I want to export my roadmap to PDF and CSV for sharing.
+
+As a Pro/Team user, I want to push the roadmap to Notion/Jira to continue execution.
+
+As a Team/Accelerator user, I want to assign owners and track status.
+
+Acceptance Criteria attached per epic in §17.
+
+5) UX Flow (Final Step in PDBuilder)
+Finish MVP step → "Create Roadmap" CTA.
+
+Roadmap Setup Modal: choose template: Now/Next/Later (default) or Quarterly.
+
+Auto‑Seeded Board appears with suggested milestones (see §6) and a short checklist (3 micro‑tasks) to reach the “Aha”.
+
+User refines: edits, drags, adds/removes, sets status/owners.
+
+Export/Sync modal with plan‑based gating (Free read‑only; Starter PDF/CSV; Pro Notion/Jira).
+
+Success screen with share tips + nudge to book a 15‑min tune‑up.
+
+6) Auto‑Seeding Rules (from PRD/MVP/Risks)
+Now (0–3 mo)
+
+MVP Launch (from MVP scope)
+
+Beta Cohort Onboarding (from ICP/use case)
+
+Analytics & Feedback Loop Setup (from validation method)
+
+Address Top 1–2 Technical Risks (from Risk table)
+
+Next (3–6 mo)
+
+Iteration: Feature(s) derived from PRD priorities & early feedback
+
+Onboarding UX Improvement
+
+Early Investor/Customer Discovery Meetings
+
+Later (6–12 mo)
+
+Scale Feature(s) & Integrations
+
+Partnership/Channel Experiment
+
+Paid Plan Rollout (if relevant)
+
+Each seeded milestone gets: title, suggested_description, category (Feature/Growth/Tech/Ops), status=Planned, dependencies (from risks), owner=null.
+
+7) Information Architecture
+Views
+
+Board View (default): columns per time bucket; milestone cards.
+
+Table View: grid of milestones with sortable columns.
+
+Export/Sync Modal: format selection + gating logic.
+
+Components
+
+Template Toggle (Now/Next/Later ↔ Quarterly)
+
+Column (bucket) + Milestone Card
+
+Milestone Drawer (full details)
+
+Add Milestone Button (+)
+
+AI Suggestion Button (“Improve milestone wording”) – optional v1.1
+
+8) Data Model (Supabase)
+-- Projects already exist in PDBuilder
+-- New tables for roadmaps
+create table roadmaps (
+id uuid primary key default gen_random_uuid(),
+project_id uuid not null references projects(id) on delete cascade,
+user_id uuid not null references users(id) on delete cascade,
+name text not null default 'Product Roadmap',
+layout text not null default 'now-next-later', -- or 'quarterly'
+created_at timestamp with time zone default now(),
+updated_at timestamp with time zone default now()
+);
+
+create table milestones (
+id uuid primary key default gen_random_uuid(),
+roadmap_id uuid not null references roadmaps(id) on delete cascade,
+bucket text not null, -- 'now' | 'next' | 'later' or 'q1'...'q4'
+sort_index integer not null default 0,
+title text not null,
+description text,
+category text check (category in ('Feature','Growth','Tech','Ops')) default 'Feature',
+status text check (status in ('Planned','In Progress','Done')) default 'Planned',
+owner uuid references users(id),
+dependencies jsonb default '[]'::jsonb,
+due_date date,
+created_at timestamp with time zone default now(),
+updated_at timestamp with time zone default now()
+);
+
+create index milestones_roadmap_idx on milestones(roadmap_id);
+create index milestones_bucket_idx on milestones(bucket, sort_index);
+9) API Design (Python FastAPI or Flask on Replit)
+Auth: Reuse existing middleware: validate customer_id/email from Shopify + Supabase JWT.
+
+Endpoints (v1)
+
+POST /api/roadmaps → create roadmap for project_id (auto‑seed from PRD/MVP/Risks).
+
+GET /api/roadmaps/{roadmap_id} → fetch roadmap + milestones.
+
+PUT /api/roadmaps/{roadmap_id} → update name/layout.
+
+DELETE /api/roadmaps/{roadmap_id} → delete.
+
+POST /api/roadmaps/{roadmap_id}/milestones → create.
+
+PUT /api/milestones/{id} → update fields (title, description, bucket, status, owner, sort_index, due_date, dependencies).
+
+DELETE /api/milestones/{id} → delete.
+
+POST /api/roadmaps/{roadmap_id}/reorder → batch update bucket/sort_index after drag.
+
+POST /api/roadmaps/{roadmap_id}/export → {format: 'pdf'|'csv'|'notion'|'jira'} → returns file link or pushes to integration; enforces plan gating.
+
+Example: Create Roadmap
+
+POST /api/roadmaps
+{
+"project_id": "<uuid>",
+"layout": "now-next-later"
+}
+Response (abbrev)
+
+{
+"id": "<uuid>",
+"layout": "now-next-later",
+"milestones": [ {"id":"...","bucket":"now","title":"MVP Launch", ...} ]
+}
+10) Frontend (React + Tailwind + shadcn/ui)
+Pages/Routes
+
+/projects/:id/roadmap
+
+Key Components
+
+<RoadmapBoard layout="now-next-later" />
+
+Columns: Now, Next, Later (or Q1–Q4)
+
+Drag & drop (dnd-kit)
+
+Milestone Card: title, category chip, status dot, owner avatar
+
+Card click → Milestone Drawer (edit all fields)
+
+<ExportDialog /> – format selector + plan gating
+
+<TemplateToggle /> – switch layout (with confirmation when converting buckets)
+
+Empty State Copy
+
+“We’ve pre‑filled your roadmap from your PRD & MVP. Drag to prioritize, then export or sync.”
+
+11) Integration Logic
+Seed from existing PDBuilder data
+
+prd.core_features → Now/Next milestones
+
+mvp.scope → “MVP Launch” milestone
+
+risks[] → dependencies or Tech/Ops milestones
+
+validation.method → Analytics/Feedback Loop
+
+Exports
+
+PDF: server‑side render (WeasyPrint or Puppeteer via headless Chromium). Branded header/footer.
+
+CSV: fields: bucket, sort_index, title, description, category, status, owner_email, due_date, dependencies.
+
+Notion: create database (properties matching fields), push rows.
+
+Jira: create issues under a specified project; map bucket→label or sprint; status→To Do/In Progress/Done.
+
+12) Subscription Gating (Feature Flags)
+Free: read‑only roadmap, no edits; preview export watermark.
+
+Starter: full edit + PDF/CSV export; max 1 roadmap per project.
+
+Pro: unlimited roadmaps; Notion/Jira exports; AI wording suggestions (v1.1).
+
+Team/Accelerator: owners/avatars, status tracking, cohort dashboard.
+
+Server enforces gating on create, edit, export endpoints. Frontend hides/greys out gated actions with upsell modal.
+
+13) Analytics (PostHog)
+Events & core properties
+
+roadmap_created {layout, project_id}
+
+milestone_added {bucket, category}
+
+milestone_updated {field}
+
+milestone_reordered {from_bucket, to_bucket}
+
+roadmap_exported {format}
+
+integration_pushed {target: 'notion'|'jira'}
+
+gated_action_viewed {action} / upgrade_clicked {from: 'roadmap'}
+
+Funnel KPIs: creation → first edit → export/sync → upgrade.
+
+14) Security & Permissions
+Reuse middleware validating Shopify customer_id + Supabase session.
+
+Row Level Security (RLS) on Supabase tables: user can access only their project’s roadmaps/milestones.
+
+Team/Accelerator: allow project members (by project_users table) to read/write.
+
+Store external integration tokens (Notion/Jira) encrypted per user.
+
+15) Performance & Limits
+Milestones per roadmap: soft cap 250; paginate table view beyond 100.
+
+Drag‑drop batch reorder API accepts ≤200 items per request.
+
+PDF generation timeout 10s; queue jobs if longer.
+
+16) Accessibility & i18n
+Keyboard accessible drag targets (up/down/left/right move with Enter to pick/drop).
+
+ARIA roles for lists and listitems; color‑contrast ≥ 4.5:1.
+
+Copy prepared for future i18n (string keys).
+
+17) Acceptance Criteria (per Epic)
+Epic A: Auto‑Seed Roadmap
+
+
+
+Epic B: Board CRUD & Reorder
+
+
+
+Epic C: Layout Toggle
+
+
+
+Epic D: Export & Sync
+
+
+
+Epic E: Analytics
+
+
+
+Epic F: Permissions
+
+
+
+18) QA Test Plan (high level)
+Unit: seed logic, reorder service, export adapters.
+
+API: auth middleware, CRUD happy/edge paths, RLS leak tests.
+
+Frontend: drag‑drop interactions, drawer edits, gating modals.
+
+E2E (Playwright): create→edit→export flows; plan upgrades; Notion/Jira push stubs.
+
+19) Implementation Plan (Replit)
+Sprint 1 (Backend foundations, 1 week)
+
+DB migrations (roadmaps/milestones, RLS policies).
+
+Seed service pulling from PRD/MVP/Risks tables.
+
+CRUD endpoints + reorder batch.
+
+Feature flag middleware (plan gating).
+
+Sprint 2 (Frontend board, 1 week)
+
+Board & Table views; dnd-kit integration; Milestone Drawer.
+
+Template toggle with conversion.
+
+Empty states and checklists for Aha moment.
+
+Sprint 3 (Exports & Integrations, 1 week)
+
+PDF/CSV export; Notion/Jira adapters; secrets storage.
+
+Export/Sync modal with gating; success toasts.
+
+Sprint 4 (Analytics, QA, polish, 1 week)
+
+PostHog events; dashboard.
+
+Accessibility pass; performance tuning; docs & handoff.
+
+20) API & SQL Snippets (Reference)
+Reorder Payload
+
+{
+"moves": [
+{"id":"milestone-1","bucket":"now","sort_index":0},
+{"id":"milestone-2","bucket":"next","sort_index":1}
+]
+}
+RLS Example
+
+alter table roadmaps enable row level security;
+create policy "project roadmaps are owned" on roadmaps
+for select using (exists (
+select 1 from project_users pu
+where pu.project_id = roadmaps.project_id and pu.user_id = auth.uid()
+));
+21) Error States & Recovery
+Export timeout → show retry with background email delivery.
+
+Notion/Jira auth failure → show reconnect prompt, keep local export available.
+
+Drag failure → local optimistic UI rollback + toast.
+
+22) Documentation & Handover
+README: setup, env vars, build/run on Replit, Supabase migrations.
+
+API docs (OpenAPI/Swagger) auto‑generated.
+
+Admin playbook: feature flags, troubleshooting.
+
+23) Go‑Live Checklist
+
+
+24) Future Enhancements (Backlog)
+Date‑based/Gantt view with swimlanes.
+
+Two‑way sync with Notion/Jira.
+
+Milestone templates by industry (Fintech, Health, Robotics).
+
+AI rewrite/scope suggestions; risk‑to‑mitigation assistant.
+
+Public share page with view analytics.
+

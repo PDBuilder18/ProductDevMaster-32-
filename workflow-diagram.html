@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDBUILDER Workflow Diagram</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            color: #2563eb;
+            font-size: 2.5em;
+            margin: 0;
+            font-weight: 700;
+        }
+        .header p {
+            color: #6b7280;
+            font-size: 1.2em;
+            margin: 10px 0 0 0;
+        }
+        .workflow-container {
+            position: relative;
+            padding: 20px 0;
+        }
+        .step {
+            display: flex;
+            align-items: center;
+            margin-bottom: 30px;
+            position: relative;
+        }
+        .step-number {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.5em;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+            flex-shrink: 0;
+            z-index: 2;
+            position: relative;
+        }
+        .step-content {
+            margin-left: 30px;
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid #2563eb;
+            flex-grow: 1;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .step-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0 0 8px 0;
+        }
+        .step-description {
+            color: #64748b;
+            margin: 0 0 8px 0;
+            line-height: 1.5;
+        }
+        .step-time {
+            color: #9ca3af;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        .ai-badge {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 600;
+            margin-left: 12px;
+            display: inline-block;
+        }
+        .connector {
+            position: absolute;
+            left: 29px;
+            top: 60px;
+            width: 2px;
+            height: 50px;
+            background: linear-gradient(180deg, #2563eb, #93c5fd);
+            z-index: 1;
+        }
+        .step:last-child .connector {
+            display: none;
+        }
+        .flow-arrow {
+            position: absolute;
+            left: 22px;
+            top: 90px;
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 12px solid #2563eb;
+            z-index: 1;
+        }
+        .step:last-child .flow-arrow {
+            display: none;
+        }
+        .output-section {
+            margin-top: 40px;
+            padding: 24px;
+            background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+            border-radius: 12px;
+            border: 2px dashed #9ca3af;
+        }
+        .output-title {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #374151;
+            margin: 0 0 12px 0;
+            text-align: center;
+        }
+        .output-items {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+        .output-item {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .output-item-title {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 4px;
+        }
+        .output-item-desc {
+            color: #6b7280;
+            font-size: 0.9em;
+        }
+        .special-step {
+            border-left-color: #10b981;
+        }
+        .special-step .step-number {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+        .export-step {
+            border-left-color: #f59e0b;
+        }
+        .export-step .step-number {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+        .feedback-step {
+            border-left-color: #8b5cf6;
+        }
+        .feedback-step .step-number {
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 PDBUILDER Workflow</h1>
+            <p>AI-Powered MVP Development Tool - 10 Step Process</p>
+        </div>
+
+        <div class="workflow-container">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="connector"></div>
+                <div class="flow-arrow"></div>
+                <div class="step-content">
+                    <div class="step-title">Problem Definition <span class="ai-badge">AI-Powered</span></div>
+                    <div class="step-description">Define and refine your problem statement with AI assistance. Interactive conversation mode helps clarify your core challenge.</div>
+                    <div class="step-time">⏱️ 3-5 minutes</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="connector"></div>
+                <div class="flow-arrow"></div>
+                <div class="step-content special-step">
+                    <div class="step-title">Market Research <span class="ai-badge">AI-Powered</span></div>
+                    <div class="step-description">Automated market analysis with search integration. AI analyzes market trends and competitive landscape.</div>
+                    <div class="step-time">⏱️ 5-10 minutes</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="connector"></div>
+                <div class="flow-arrow"></div>
+                <div class="step-content">
+                    <div class="step-title">Root Cause Analysis <span class="ai-badge">AI-Powered</span></div>
+                    <div class="step-description">Structured problem investigation using "5 Whys" methodology to identify underlying causes.</div>
+                    <div class="step-time">⏱️ 3-5 minutes</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="connector"></div>
+                <div class="flow-arrow"></div>
+                <div class="step-content special-step">
+                    <div class="step-title">Existing Solutions <span class="ai-badge">AI-Powered</span></div>
+                    <div class="step-description">Competitor analysis and research. Identify existing solutions and market gaps.</div>
+                    <div class="step-time">⏱️ 5-8 minutes</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">5</div>
+                <div class="connector"></div>
+                <div class="flow-arrow"></div>
+                <div class="step-content">
+                    <div class="step-title">Customer Profile (ICP) <span class="ai-badge">AI-Powered</span></div>
+                    <div class="step-description">Create detailed Ideal Customer Profile with demographics, pain points, and behaviors.</div>
+                    <div class="step-time">⏱️ 4-6 minutes</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">6</div>
+                <div class="connector"></div>
+                <div class="flow-arrow"></div>
+                <div class="step-content special-step">
+                    <div class="step-title">Use Case Definition <span class="ai-badge">AI-Powered</span></div>
+                    <div class="step-description">User journey mapping with detailed narratives, step sequences, and business metrics.</div>
+                    <div class="step-time">⏱️ 4-7 minutes</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">7</div>
+                <div class="connector"></div>
+                <div class="flow-arrow"></div>
+                <div class="step-content">
+                    <div class="step-title">Product Requirements <span class="ai-badge">AI-Powered</span></div>
+                    <div class="step-description">Feature specification generation with must-have vs. nice-to-have categorization.</div>
+                    <div class="step-time">⏱️ 5-10 minutes</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">8</div>
+                <div class="connector"></div>
+                <div class="flow-arrow"></div>
+                <div class="step-content special-step">
+                    <div class="step-title">Prioritization <span class="ai-badge">AI-Powered</span></div>
+                    <div class="step-description">AI-assisted feature prioritization for MVP scope using impact vs. effort analysis.</div>
+                    <div class="step-time">⏱️ 3-5 minutes</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">9</div>
+                <div class="connector"></div>
+                <div class="flow-arrow"></div>
+                <div class="step-content export-step">
+                    <div class="step-title">Export Document</div>
+                    <div class="step-description">Generate professional investor-ready MVP document in PDF or DOCX format.</div>
+                    <div class="step-time">⏱️ 1-2 minutes</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">10</div>
+                <div class="step-content feedback-step">
+                    <div class="step-title">Feedback Collection</div>
+                    <div class="step-description">Share your experience and help improve PDBUILDER for future users.</div>
+                    <div class="step-time">⏱️ 1-2 minutes</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="output-section">
+            <div class="output-title">📄 Final Deliverables</div>
+            <div class="output-items">
+                <div class="output-item">
+                    <div class="output-item-title">MVP Requirements Document</div>
+                    <div class="output-item-desc">Comprehensive product specification</div>
+                </div>
+                <div class="output-item">
+                    <div class="output-item-title">Market Analysis Report</div>
+                    <div class="output-item-desc">Competitive landscape overview</div>
+                </div>
+                <div class="output-item">
+                    <div class="output-item-title">Customer Profile</div>
+                    <div class="output-item-desc">Detailed ICP with use cases</div>
+                </div>
+                <div class="output-item">
+                    <div class="output-item-title">Feature Prioritization</div>
+                    <div class="output-item-desc">MVP scope with development roadmap</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

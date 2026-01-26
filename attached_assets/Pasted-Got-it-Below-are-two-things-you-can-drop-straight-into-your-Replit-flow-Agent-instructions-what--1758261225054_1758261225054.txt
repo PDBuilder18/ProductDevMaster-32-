@@ -1,0 +1,234 @@
+Got it. Below are two things you can drop straight into your Replit flow:
+
+Agent instructions (what to do with the attached GTM output and how to transform it using the PDBuilder GTM step), and
+
+A standardized GTM document (headings/sub-headings/bullets) generated from the attached content. 
+
+Go_To_Market_Strategy
+
+A) Replit Agent — update/format instructions
+Goal: Parse the attached GTM output, normalize it using the PDBuilder GTM step (schema + step from our previous message), and render a standard GTM strategy (Markdown/HTML) with clear headings, sub-headings, and bullets.
+
+1) Inputs
+Source doc: /mnt/data/Go_To_Market_Strategy.docx (GTM draft). 
+
+Go_To_Market_Strategy
+
+PDBuilder GTM step:
+
+Input schema: pdBuilder.gtm.schema.v1
+
+Agent step prompt: gtm_step_v1
+
+Output contract: pdBuilder.gtm.plan.v1
+
+2) Parse & map
+Extract canonical sections from the doc:
+
+Target Market → summary.market
+
+Value Proposition → messaging.positioning (core benefit) + later “Hero”
+
+Positioning Statement → messaging.positioning
+
+Pricing Strategy → add under “Pricing & Packaging”
+
+Distribution Channels → “Channels”
+
+Marketing Tactics → “Programs & Plays”
+
+Launch Plan → “Execution Timeline”
+
+Key Success Metrics → “Metrics (AARRR)”
+
+Competitive Advantage → “Differentiation”
+
+Keep all original numbers, thresholds, and milestones; do not invent data.
+
+3) Normalize with GTM step
+Build a minimal pdBuilder.gtm.schema.v1 input using the doc content:
+
+product.name = "<App name from doc>"
+
+persona.title/segment/pain_points inferred from “mid-career working grad students”
+
+growth_motion = "PLG" (implied by app stores, freemium) — adjust if needed
+
+target_market = "NicheVertical"
+
+acquisition_channels = ["Owned","Paid","Ecosystem"]
+
+launch_approach = "SoftBeta" → "PublicLaunch" (per timelines)
+
+core_programs = ["ContentEngine","OnboardingExcellence","ReferralsAffiliates"]
+
+metric_priority = ["Activation","Retention","Revenue"]
+
+constraints.budget_monthly_usd = leave blank if not in doc
+
+Call gtm_step_v1 → validate JSON against pdBuilder.gtm.plan.v1.
+
+4) Render standard document
+Merge:
+
+Authoritative content from the doc (numbers, claims, plans) with
+
+Structural scaffolding from pdBuilder.gtm.plan.v1 (headings, checklists).
+
+Output Markdown with H1/H2/H3 + bullet points (no prose walls).
+
+Preserve doc’s KPIs, milestones, prices, and program names verbatim.
+
+5) Save & expose
+Write to /mnt/data/GTM_Strategy_Standardized.md
+
+(Optional) Also export HTML for CMS use: /mnt/data/GTM_Strategy_Standardized.html
+
+B) Standard GTM Strategy (formatted from the attached doc)
+Go-To-Market Strategy
+1) Target Market
+Beachhead: Mid-career graduate students (28–45) in part-time/online programs (MBA, MPH, MSCS) who work full-time and have family obligations; geos: US, Canada, UK.
+
+Size (directional):
+
+US grad students ~3.1M; 40–60% work full-time ⇒ ~1.3–1.9M
+
+Canada/UK add ~0.3–0.4M ⇒ ~1.6–2.3M serviceable segment
+
+24-mo SOM: 150k–300k users via DTC + institutional pilots
+
+Revenue potential (@ $79 ARPA/year): $11.9–$23.7M annually
+
+Category context: Sub-segment of higher-ed time-management/adaptive support within broader EdTech market (est. $5–8B relevant slice)
+
+2) Value Proposition
+Promise: Never miss academic deadlines due to poor time allocation.
+
+MVP outcomes:
+
+Adaptive scheduling that fits around work/family
+
+Bite-sized, time-boxed study blocks aligned to course requirements
+
+Smart reminders + protected quiet hours
+
+Simple onboarding that turns goals → realistic weekly plan
+
+Result: More on-time submissions, less stress, sustained work performance
+
+3) Positioning & Messaging
+Positioning statement:
+For working grad students juggling jobs and family, our cross-device study-time orchestration app converts syllabi + work calendars into realistic, adaptive study plans (with quiet hours and wellbeing nudges). Unlike generic productivity tools or course platforms, we cut stress and missed deadlines for working learners.
+
+Hero & CTAs (for landing)
+Hero idea: “Study on schedule—without burning out.”
+
+Primary CTAs: “Start Free” · “See a 2-Minute Demo”
+
+4) Pricing & Packaging
+Free: Core scheduling, up to 2 synced calendars, basic reminders, single device
+
+Pro: $9.99/mo or $79/yr — unlimited devices/sync, adaptive guidance, quiet-hour automation, advanced reminders, priority support
+
+Team/Institution: $5–$7/user/mo (min 50) — SSO, cohort templates, onboarding webinars, usage reporting
+
+Rationale: Above to-do apps (Todoist $4–$6/mo, Notion $8/user/mo) due to academic specialization; well below MOOCs (Coursera Plus ~$59/mo) & time-tracking suites; annual plan to lift cash flow and retention; institutional price aligns with student wellness/success budgets
+
+5) Channels (Acquisition & Distribution)
+Direct-to-Consumer: iOS/Android app stores + web app
+
+University Partnerships: Part-time/online programs & student services
+
+Professional Networks: LinkedIn targeting working grads + employer ERGs
+
+6) Core Programs & Tactics
+Paid/Targeting:
+
+LinkedIn campaigns to roles (PM, Consultant, Nurse Manager, SWE) filtering for MBA/Master’s status
+
+Creative: reduced stress + on-time submission; calendar-integrated demos
+
+Content/SEO:
+
+Program-specific templates (e.g., “12-Week MBA Quant Study Plan”)
+
+Lead magnets (e.g., “Weekend Research Sprint Playbook”) → email → trial
+
+Institutional pilots:
+
+Evening/online MBA co-branded onboarding webinars
+
+Faculty-approved study-block templates; secure testimonials/case studies
+
+Referrals:
+
+1 free month of Pro for both referrer + friend on first paid conversion
+
+In-app prompts after 2 weeks of consistent plan adherence
+
+7) Execution Timeline (Launch Plan)
+Weeks 0–2 (Pre-launch):
+
+Validate messaging (15–20 interviews)
+
+Landing + waitlist; define success metrics
+
+Milestones: 500+ waitlist; linked CAC test < $10/lead
+
+Weeks 3–6 (Private Beta):
+
+Invite 300 across MBA/research tracks; MVP release (responsive UI, onboarding guidance, scheduling prefs, reminders/quiet hours, auth/sync)
+
+Milestones: D7 activation ≥55% (onboard + ≥3 blocks), NPS ≥20, adherence ≥50%
+
+Weeks 7–8 (Refinement):
+
+Improve onboarding clarity (program templates), calendar import (G/O), reminder cadence, cross-device polish
+
+Milestones: D7 ≥60%, adherence ≥60%
+
+Weeks 9–10 (Pilot Partnerships):
+
+2–3 program pilots, 30-min onboarding webinars, qual feedback & outcomes
+
+Milestones: 200+ pilot MAUs, on-time task self-report +15%
+
+Weeks 11–12 (Soft Launch DTC):
+
+App Store/Play live with limited paid; roll out referrals; publish 3 case studies + 5 SEO templates
+
+Milestones: 2,000 MAUs, free→paid ≥4%, CAC < $25
+
+Weeks 13–16 (GA):
+
+Scale LinkedIn + retargeting; employer ERG kit; lock institutional pricing
+
+Milestones: 5,000 MAUs, D30 ≥35%, 3 signed pilots
+
+Quarter 2 (Scale):
+
+Content for research-focused students, localized UK/CA pricing, LMS integrations roadmap
+
+Milestones: 15,000 MAUs, 1,500–2,000 paying subs, CAC payback < 3 mo
+
+8) Metrics (AARRR & Ops)
+Acquisition: CAC (LinkedIn/test campaigns), Waitlist growth
+
+Activation: D7 activation (onboard + ≥3 blocks), TTFV to first scheduled plan
+
+Retention: D30 retention, weekly adherence %
+
+Revenue: Free→Paid conversion, ARPA, Payback period
+
+Referral: % new from invites; referral-trigger rate after 2 weeks adherence
+
+9) Differentiation (Competitive Advantage)
+Purpose-built for working graduate students: orchestrates study time around work/family (not generic tasks)
+
+Adaptive time allocation (fixed meetings vs variable study tasks)
+
+Quiet-hour automation + wellbeing nudges (privacy-by-design)
+
+Cross-device ease; academic-specific onboarding & templates (by program/course)
+
+Early institutional pilots + outcome case studies as defensible assets

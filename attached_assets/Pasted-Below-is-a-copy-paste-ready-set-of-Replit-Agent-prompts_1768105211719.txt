@@ -1,0 +1,561 @@
+Below is a copy/paste-ready set of Replit Agent prompts + build instructions to implement your “Learn → Do → (only then) AI Generate” flow for your 10 stages.
+I’m assuming your current stack is Vite/React frontend + Express backend, with existing endpoints for sessions and AI generation. The approach below adds a “Learner Mode” layer without breaking your current generator endpoints.
+
+A. Product behavior you’re building
+For each stage:
+Concept (1–3 min)
+Example (good vs bad)
+User Work (required) — form fields / short answers
+AI Coach Grades Attempt (rubric + improvement)
+AI Generates Output (structured artifact)
+Save everything to the session so later stages can use it.
+Hard rule: “Generate” is disabled until minimum attempt is submitted.
+
+B. Replit Agent prompts (use these in order)
+Prompt 1 — Add the learning stage definitions + schemas (data-first)
+Paste into Replit Agent:
+You are working in a Vite/React + Express TypeScript app. Implement a learner-mode workflow with 10 stages:
+1 Problem Definition
+2 Market Research
+3 Root Cause
+4 Existing Solutions
+5 Customer Profile
+6 Use Case
+7 Requirements
+8 Prioritization
+9 Export Document
+10 Feedback
+
+Create a new shared module `shared/learningStages.ts` that exports:
+- `LearningStageId` union type (10 stage IDs in kebab-case).
+- `LEARNING_STAGES` ordered array with: title, concept, example_good, example_bad, required_fields (form spec), rubric (criteria), ai_output_schema (JSON schema-ish object for validation), and dependencies (prior stages).
+- Types: `StageAttempt`, `StageGrade`, `StageArtifact`, and `LearningStageState` (attempt+grade+artifact+timestamps+version).
+- A helper `minAttemptSatisfied(stageId, attempt)` to enforce gating.
+- A helper `buildStageContext(stageId, sessionData)` to pass relevant prior outputs to AI.
+
+Do NOT change existing routes yet. Keep it self-contained and compile cleanly.
+Prompt 2 — Backend: add attempt/grade/generate endpoints (without breaking existing)
+Add learner-mode endpoints to `server/routes.ts` (or a new router file) to support:
+- GET  /api/learning/stages              -> returns LEARNING_STAGES (safe subset for UI)
+- GET  /api/sessions/:id/learning        -> returns session.data.learning object (or {})
+- POST /api/sessions/:id/learning/:stage/attempt
+- POST /api/sessions/:id/learning/:stage/grade
+- POST /api/sessions/:id/learning/:stage/generate
+- POST /api/sessions/:id/learning/:stage/submit  (does attempt->grade->generate in one call)
+
+Rules:
+- Store everything under `session.data.learning[stageId]`.
+- Require attempt before grade/generate.
+- `generate` requires either: (a) grade exists OR (b) attempt satisfies minAttemptSatisfied.
+- On successful generate, set session.currentStage to next stage (based on LEARNING_STAGES order) and append stageId to completedStages.
+
+Use zod validation for request bodies based on required_fields, and return clear 400 errors.
+
+Use existing `storage.getSession` and `storage.updateSession` patterns.
+Prompt 3 — AI layer: add two generic methods (grade + generate) using your existing AI client
+In `server/services/openai.ts`, add two new generic methods:
+
+1) `gradeLearningAttempt(stageDef, attempt, priorContext) -> StageGrade`
+2) `generateLearningArtifact(stageDef, attempt, grade, priorContext) -> StageArtifact`
+
+Requirements:
+- Use strict JSON-only responses (no markdown) and run through your existing JSON extraction helper.
+- The grade response must include: overallScore 0-100, per-criterion scores 0-3, strengths, improvements, missingInfoQuestions (max 5), and "readyToGenerate" boolean.
+- The artifact response must match the stage's ai_output_schema shape.
+
+Also add a helper `buildLearningPrompts(stageDef, attempt, priorContext, grade?)` that returns system+user prompt strings.
+
+Do not change existing methods; just add new ones.
+Prompt 4 — Frontend UI: “Learn / Do / AI Output” stage page
+In the React UI, create a `LearningStagePage` that renders 3 tabs:
+- Learn: shows concept + good/bad example
+- Do: renders the required_fields form, saves drafts locally, submits attempt
+- AI Output: shows grade + generated artifact (pretty rendered)
+
+Gating:
+- Disable Grade/Generate until attempt meets minimum.
+- If grade says readyToGenerate=false, show improvements + missing questions; allow user to revise attempt.
+- Add "Submit & Generate" button that calls /submit.
+
+Use React Query for fetching and mutations.
+Persist attempt drafts in localStorage keyed by sessionId+stageId.
+Prompt 5 — Make the outputs teach: show rubric + compare user attempt vs AI artifact
+Enhance the UI so after generation, the user sees:
+- Their attempt (left)
+- AI artifact (right)
+- Rubric scores and a short “what changed and why” explanation from the AI (add this field to StageArtifact as "learningNotes").
+
+Add a “Mark as Learned” button that sets `learning[stageId].status = "mastered"` and unlocks next stage.
+
+C. The stage definitions (concept + example + user-work form + rubric + output spec)
+Below is a ready-to-use LEARNING_STAGES payload you can paste into shared/learningStages.ts.
+Stage IDs:
+problem-definition, market-research, root-cause, existing-solutions, customer-profile, use-case, requirements, prioritization, export-document, feedback
+// shared/learningStages.ts
+export type LearningStageId =
+  | "problem-definition"
+  | "market-research"
+  | "root-cause"
+  | "existing-solutions"
+  | "customer-profile"
+  | "use-case"
+  | "requirements"
+  | "prioritization"
+  | "export-document"
+  | "feedback";
+
+export type FieldType = "shortText" | "longText" | "number" | "select" | "multi" | "links";
+
+export interface RequiredField {
+  id: string;
+  label: string;
+  type: FieldType;
+  required: boolean;
+  placeholder?: string;
+  options?: string[];
+  minChars?: number;
+}
+
+export interface RubricCriterion {
+  id: string;
+  label: string;
+  description: string;
+}
+
+export interface StageDef {
+  id: LearningStageId;
+  title: string;
+  concept: string;
+  example_good: string;
+  example_bad: string;
+  required_fields: RequiredField[];
+  rubric: RubricCriterion[];
+  // lightweight schema-ish description used in prompts + optional zod validation
+  ai_output_spec: any;
+  depends_on?: LearningStageId[];
+}
+
+export const LEARNING_STAGES: StageDef[] = [
+  {
+    id: "problem-definition",
+    title: "Problem Definition",
+    concept:
+      "Define a user-centered problem (not a solution). Include: who, context, pain, consequence, current workaround, and proof signals. A great problem is specific and measurable.",
+    example_bad:
+      "We need an app to help people manage tasks better.",
+    example_good:
+      "Remote startup product teams miss sprint commitments because ownership of decisions is unclear across Slack + docs, causing 2–3 rework loops per sprint and delaying releases by 1–2 weeks.",
+    required_fields: [
+      { id: "targetUser", label: "Target user (role + context)", type: "shortText", required: true, minChars: 10 },
+      { id: "context", label: "When/where does the problem occur?", type: "longText", required: true, minChars: 30 },
+      { id: "pain", label: "What goes wrong (symptom)?", type: "longText", required: true, minChars: 30 },
+      { id: "consequence", label: "Consequence (time/cost/risk)", type: "longText", required: true, minChars: 20 },
+      { id: "workaround", label: "Current workaround", type: "longText", required: true, minChars: 20 },
+      { id: "proofSignals", label: "Proof signals you’ve seen (data/examples)", type: "longText", required: true, minChars: 20 },
+      { id: "antiSolution", label: "Describe it without proposing a product/feature", type: "shortText", required: true, minChars: 20 },
+    ],
+    rubric: [
+      { id: "specificity", label: "Specificity", description: "Clear who/when/what; avoids generic phrasing." },
+      { id: "userCentered", label: "User-centered", description: "Focuses on user pain vs your idea/solution." },
+      { id: "measurable", label: "Measurable impact", description: "Has observable consequences or metrics." },
+      { id: "evidence", label: "Evidence signals", description: "Includes proof signals or credible observations." },
+      { id: "scope", label: "Scope clarity", description: "Not too broad; one core problem." },
+    ],
+    ai_output_spec: {
+      problemStatement: "string",
+      successMetrics: ["string"],
+      assumptions: ["string"],
+      clarifyingQuestions: ["string"],
+      risksIfWrong: ["string"],
+      learningNotes: "string",
+    },
+  },
+
+  {
+    id: "market-research",
+    title: "Market Research",
+    concept:
+      "Market research is evidence gathering: competitors, substitutes, what users like/hate, and willingness-to-pay signals. You’re mapping the landscape, not proving your idea.",
+    example_bad:
+      "Competitors exist but our solution is better.",
+    example_good:
+      "Direct competitors: X/Y/Z; substitutes: spreadsheets/Slack; repeated complaints: handoffs + ownership; buyers pay when cycle-time reduction is provable.",
+    required_fields: [
+      { id: "competitors", label: "3 direct competitors (names)", type: "multi", required: true },
+      { id: "substitutes", label: "3 substitutes/workarounds", type: "multi", required: true },
+      { id: "likes", label: "What users like about existing options (bullets)", type: "longText", required: true, minChars: 40 },
+      { id: "gaps", label: "What users hate/miss (bullets)", type: "longText", required: true, minChars: 40 },
+      { id: "sources", label: "Where did you find this? (links/notes)", type: "links", required: false },
+      { id: "winHypothesis", label: "Your differentiation hypothesis: 'We win by ___ for ___'", type: "shortText", required: true, minChars: 20 },
+      { id: "permissionToSearch", label: "Allow AI to do web-style search using your search service?", type: "select", required: true, options: ["yes", "no"] },
+    ],
+    rubric: [
+      { id: "coverage", label: "Coverage", description: "Includes competitors + substitutes + status quo." },
+      { id: "insight", label: "Insight quality", description: "Identifies patterns, not a list." },
+      { id: "evidence", label: "Evidence", description: "Mentions where insights came from." },
+      { id: "positioning", label: "Positioning clarity", description: "Clear 'we win by' hypothesis." },
+      { id: "realism", label: "Realism", description: "Avoids unsupported claims." },
+    ],
+    depends_on: ["problem-definition"],
+    ai_output_spec: {
+      competitorTable: [{ name: "string", type: "direct|adjacent|substitute", strengths: ["string"], weaknesses: ["string"], likelyBuyer: "string", pricingNotes: "string" }],
+      keyPatterns: ["string"],
+      differentiationOptions: ["string"],
+      researchGaps: ["string"],
+      nextResearchTasks: ["string"],
+      learningNotes: "string",
+    },
+  },
+
+  {
+    id: "root-cause",
+    title: "Root Cause",
+    concept:
+      "Symptoms aren’t causes. Root cause analysis explains the mechanism behind the problem (process, incentives, constraints, missing info). Use 5 Whys and propose what would disprove your cause.",
+    example_bad:
+      "Root cause is poor communication.",
+    example_good:
+      "Root cause: decision ownership + evidence rules are missing; teams build on assumptions, creating rework loops.",
+    required_fields: [
+      { id: "topSymptom", label: "Top symptom (one sentence)", type: "shortText", required: true, minChars: 15 },
+      { id: "fiveWhys", label: "5 Whys (5 bullets)", type: "longText", required: true, minChars: 50 },
+      { id: "contributors", label: "People/Process/Tools/Data contributors (bullets)", type: "longText", required: true, minChars: 50 },
+      { id: "rootCauseCandidate", label: "Root cause candidate + why (2–3 sentences)", type: "longText", required: true, minChars: 40 },
+      { id: "disproof", label: "What would disprove this root cause?", type: "longText", required: true, minChars: 20 },
+    ],
+    rubric: [
+      { id: "mechanism", label: "Mechanism", description: "Explains how/why the symptom happens." },
+      { id: "depth", label: "Depth", description: "Goes beyond surface labels (e.g., 'communication')." },
+      { id: "testability", label: "Testability", description: "Includes disproof/validation thinking." },
+      { id: "alignment", label: "Alignment", description: "Ties back to original problem." },
+      { id: "clarity", label: "Clarity", description: "Readable, structured reasoning." },
+    ],
+    depends_on: ["problem-definition"],
+    ai_output_spec: {
+      rootCauseTree: { nodes: ["string"], links: [{ from: "string", to: "string", because: "string" }] },
+      leveragePoints: ["string"],
+      validationTests: ["string"],
+      risksIfWrong: ["string"],
+      learningNotes: "string",
+    },
+  },
+
+  {
+    id: "existing-solutions",
+    title: "Existing Solutions",
+    concept:
+      "You compete with products AND status quo. Map direct options, adjacent options, DIY workarounds, and doing nothing—then identify why each fails for your ICP.",
+    example_bad:
+      "Competitors are bad and we’re better.",
+    example_good:
+      "Teams choose spreadsheets because it’s free; it fails at cross-team dependency visibility, so ownership breaks down.",
+    required_fields: [
+      { id: "solutions", label: "5 solutions: 2 competitors, 1 adjacent, 1 DIY, 1 status quo", type: "longText", required: true, minChars: 80 },
+      { id: "whyChosen", label: "Why people choose them (bullets)", type: "longText", required: true, minChars: 40 },
+      { id: "failureModes", label: "Where they break down (bullets)", type: "longText", required: true, minChars: 40 },
+      { id: "opportunity", label: "Opportunity statement: 'Build X for Y because Z'", type: "shortText", required: true, minChars: 25 },
+    ],
+    rubric: [
+      { id: "completeness", label: "Completeness", description: "Includes DIY + status quo, not only competitors." },
+      { id: "failureAnalysis", label: "Failure analysis", description: "Explains why solutions fail, not just that they do." },
+      { id: "specificity", label: "Specificity", description: "Concrete breakdown points." },
+      { id: "opportunity", label: "Opportunity clarity", description: "Clear X/Y/Z statement." },
+      { id: "requirementsSignal", label: "Signals requirements", description: "Implies must-have constraints/features." },
+    ],
+    depends_on: ["market-research", "root-cause"],
+    ai_output_spec: {
+      solutionMap: [{ name: "string", category: "direct|adjacent|diy|statusquo", whyChosen: ["string"], failureModes: ["string"] }],
+      failurePatterns: ["string"],
+      mustHaveRequirements: ["string"],
+      doNotBuildYet: ["string"],
+      learningNotes: "string",
+    },
+  },
+
+  {
+    id: "customer-profile",
+    title: "Customer Profile",
+    concept:
+      "ICP is who buys and why now: triggers, constraints, decision process, and success definition. Not demographics alone.",
+    example_bad:
+      "Our customer is anyone who needs productivity.",
+    example_good:
+      "Buyer: Head of Product at 20–100 person remote SaaS; trigger: scaling teams; constraint: tool fatigue; success: shorter cycle time.",
+    required_fields: [
+      { id: "buyerUser", label: "Buyer role vs end user role", type: "shortText", required: true, minChars: 15 },
+      { id: "companyProfile", label: "Company type + size", type: "shortText", required: true, minChars: 10 },
+      { id: "trigger", label: "Trigger event (why now)", type: "longText", required: true, minChars: 20 },
+      { id: "topPains", label: "Top 3 pains", type: "longText", required: true, minChars: 30 },
+      { id: "constraints", label: "Constraints (budget/time/compliance)", type: "longText", required: true, minChars: 20 },
+      { id: "decisionProcess", label: "How they decide + stakeholders", type: "longText", required: true, minChars: 25 },
+    ],
+    rubric: [
+      { id: "targeting", label: "Targeting precision", description: "Clear who; not 'everyone'." },
+      { id: "whyNow", label: "Why now", description: "Trigger is credible and specific." },
+      { id: "buying", label: "Buying reality", description: "Mentions decision process & objections." },
+      { id: "pain", label: "Pain depth", description: "Pains are concrete and tied to outcomes." },
+      { id: "constraints", label: "Constraints", description: "Realistic constraints included." },
+    ],
+    depends_on: ["problem-definition", "existing-solutions"],
+    ai_output_spec: {
+      primaryICP: { summary: "string", triggers: ["string"], jobsToBeDone: ["string"], pains: ["string"], objections: ["string"], channels: ["string"] },
+      secondaryICP: { summary: "string", triggers: ["string"], pains: ["string"] },
+      messagingHooks: ["string"],
+      learningNotes: "string",
+    },
+  },
+
+  {
+    id: "use-case",
+    title: "Use Case",
+    concept:
+      "Use cases are repeatable stories: actor → goal → steps → success/edge cases. They translate intent into behavior.",
+    example_bad:
+      "User uses the app to solve the problem.",
+    example_good:
+      "As a product lead, I log a blocked decision, assign an owner + due date, attach evidence, and review the top 3 each week to prevent drift.",
+    required_fields: [
+      { id: "actorGoal", label: "Primary actor + goal", type: "longText", required: true, minChars: 30 },
+      { id: "preconditions", label: "Preconditions/assumptions", type: "longText", required: true, minChars: 20 },
+      { id: "steps", label: "Primary flow (6–10 steps)", type: "longText", required: true, minChars: 60 },
+      { id: "success", label: "Success outcome", type: "longText", required: true, minChars: 20 },
+      { id: "edgeCases", label: "Edge cases (3)", type: "longText", required: true, minChars: 30 },
+      { id: "timeToValue", label: "Time to value target", type: "shortText", required: true, minChars: 5 },
+    ],
+    rubric: [
+      { id: "flow", label: "Flow completeness", description: "Clear steps with cause/effect." },
+      { id: "testability", label: "Testability", description: "Success and edge cases are measurable." },
+      { id: "realism", label: "Realism", description: "Steps match real user behavior." },
+      { id: "scope", label: "Scope discipline", description: "Not trying to do everything." },
+      { id: "alignment", label: "Alignment", description: "Matches ICP + problem + root cause." },
+    ],
+    depends_on: ["customer-profile"],
+    ai_output_spec: {
+      narrative: "string",
+      primaryFlow: ["string"],
+      alternateFlows: ["string"],
+      dataInputsOutputs: [{ step: "string", inputs: ["string"], outputs: ["string"] }],
+      mvpSlice: ["string"],
+      learningNotes: "string",
+    },
+  },
+
+  {
+    id: "requirements",
+    title: "Requirements",
+    concept:
+      "Requirements must be testable. Each requirement needs acceptance criteria. Avoid vague words ('easy', 'fast') without metrics.",
+    example_bad:
+      "The system should be user-friendly and fast.",
+    example_good:
+      "User must assign a decision owner + due date; overdue decisions appear in weekly review; owner is required.",
+    required_fields: [
+      { id: "functional", label: "5 functional requirements (bullets)", type: "longText", required: true, minChars: 60 },
+      { id: "nonFunctional", label: "3 non-functional requirements", type: "longText", required: true, minChars: 30 },
+      { id: "tests", label: "How would you test each? (one line each)", type: "longText", required: true, minChars: 40 },
+      { id: "constraints", label: "Constraints (tech/legal/business)", type: "longText", required: false },
+    ],
+    rubric: [
+      { id: "testable", label: "Testable", description: "Can verify each requirement." },
+      { id: "coverage", label: "Coverage", description: "Functional + non-functional included." },
+      { id: "clarity", label: "Clarity", description: "Unambiguous wording." },
+      { id: "traceability", label: "Traceability", description: "Ties back to use case." },
+      { id: "scope", label: "Scope", description: "Not bloated; distinguishes must vs nice-to-have." },
+    ],
+    depends_on: ["use-case"],
+    ai_output_spec: {
+      functionalRequirements: [{ id: "string", statement: "string", acceptanceCriteria: ["string"] }],
+      nonFunctionalRequirements: [{ id: "string", statement: "string", metric: "string" }],
+      outOfScope: ["string"],
+      openQuestions: ["string"],
+      learningNotes: "string",
+    },
+  },
+
+  {
+    id: "prioritization",
+    title: "Prioritization",
+    concept:
+      "Prioritization is trade-offs under constraints. Choose what creates learning/value fastest, not what’s coolest. Define MVP boundary explicitly.",
+    example_bad:
+      "We will build all features that users want.",
+    example_good:
+      "MVP: ownership + due dates + weekly review + export memo. Defer integrations and dashboards.",
+    required_fields: [
+      { id: "features", label: "List 10 candidate features", type: "longText", required: true, minChars: 80 },
+      { id: "method", label: "Method", type: "select", required: true, options: ["MoSCoW", "RICE"] },
+      { id: "constraints", label: "Constraint (time/budget/team) + limit", type: "shortText", required: true, minChars: 10 },
+      { id: "mvpMustHaves", label: "Your MVP must-haves (3)", type: "longText", required: true, minChars: 20 },
+      { id: "defer", label: "What you will NOT build now (kill list)", type: "longText", required: true, minChars: 20 },
+    ],
+    rubric: [
+      { id: "tradeoffs", label: "Trade-offs", description: "Clear MVP boundary and kill list." },
+      { id: "method", label: "Method use", description: "Uses RICE/MoSCoW consistently." },
+      { id: "constraints", label: "Constraint realism", description: "Matches stated limits." },
+      { id: "learning", label: "Learning value", description: "MVP maximizes validation speed." },
+      { id: "coherence", label: "Coherence", description: "Aligns with requirements/use case." },
+    ],
+    depends_on: ["requirements"],
+    ai_output_spec: {
+      prioritizationTable: [{ feature: "string", score: "number", bucket: "Must|Should|Could|Wont", rationale: "string" }],
+      mvpBoundary: { buildNow: ["string"], notNow: ["string"] },
+      phasedRoadmap: { mvp: ["string"], v1: ["string"] },
+      keyRisks: ["string"],
+      learningNotes: "string",
+    },
+  },
+
+  {
+    id: "export-document",
+    title: "Export Document",
+    concept:
+      "Turn your work into a teachable artifact: problem → evidence → ICP → use case → requirements → MVP boundary → next steps.",
+    example_bad:
+      "Here is our idea and some features.",
+    example_good:
+      "A 2–5 page MVP brief with clear assumptions, risks, MVP boundary, and next validation steps.",
+    required_fields: [
+      { id: "audience", label: "Audience", type: "select", required: true, options: ["Founder", "Team", "Investor"] },
+      { id: "format", label: "Format", type: "select", required: true, options: ["Markdown", "DOCX", "PDF"] },
+      { id: "sections", label: "Must-include sections (choose 5–7)", type: "longText", required: true, minChars: 30 },
+      { id: "tone", label: "Tone", type: "select", required: true, options: ["Concise", "Detailed"] },
+    ],
+    rubric: [
+      { id: "structure", label: "Structure", description: "Sections fit audience and tell a coherent story." },
+      { id: "completeness", label: "Completeness", description: "Includes MVP boundary + assumptions." },
+      { id: "clarity", label: "Clarity", description: "Readable and actionable." },
+      { id: "evidence", label: "Evidence posture", description: "Distinguishes facts vs assumptions." },
+      { id: "nextSteps", label: "Next steps", description: "Clear validation plan." },
+    ],
+    depends_on: ["prioritization"],
+    ai_output_spec: {
+      executiveSummary: "string",
+      documentMarkdown: "string",
+      assumptionsAppendix: ["string"],
+      nextActions: ["string"],
+      learningNotes: "string",
+    },
+  },
+
+  {
+    id: "feedback",
+    title: "Feedback",
+    concept:
+      "Learning closes the loop: what was strong, what was weak, what evidence is missing, and what you’ll do next. Convert the project into a repeatable skill.",
+    example_bad:
+      "Looks good.",
+    example_good:
+      "Requirements were too vague; MVP boundary improved; next I’ll run 5 interviews and validate willingness to pay.",
+    required_fields: [
+      { id: "ratings", label: "Rate each stage 1–5 with a short note", type: "longText", required: true, minChars: 60 },
+      { id: "mostUseful", label: "Most useful part", type: "longText", required: true, minChars: 20 },
+      { id: "mostConfusing", label: "Most confusing part", type: "longText", required: true, minChars: 20 },
+      { id: "stillNotSure", label: "What you still don’t believe / need evidence for", type: "longText", required: true, minChars: 20 },
+      { id: "next3Actions", label: "Next 3 actions you will take", type: "longText", required: true, minChars: 30 },
+    ],
+    rubric: [
+      { id: "honesty", label: "Honest reflection", description: "Identifies weak spots credibly." },
+      { id: "specificity", label: "Specificity", description: "Not generic praise; concrete insights." },
+      { id: "evidence", label: "Evidence awareness", description: "Knows what must be validated." },
+      { id: "actionability", label: "Actionability", description: "Clear next steps." },
+      { id: "transfer", label: "Transfer", description: "Extracts reusable lessons." },
+    ],
+    depends_on: ["export-document"],
+    ai_output_spec: {
+      learningSummary: "string",
+      weakestStages: ["string"],
+      improvementPlan: [{ stage: "string", drills: ["string"] }],
+      spacedRepetitionPrompts: ["string"],
+      learningNotes: "string",
+    },
+  },
+];
+
+// Gating helper (simple default)
+export function minAttemptSatisfied(stageId: LearningStageId, attempt: Record<string, any>): boolean {
+  // minimum: at least 4 non-empty fields OR 160 total chars across text fields
+  const vals = Object.values(attempt || {});
+  const nonEmpty = vals.filter(v => typeof v === "string" ? v.trim().length > 0 : Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined).length;
+  const chars = vals.reduce((sum, v) => sum + (typeof v === "string" ? v.trim().length : 0), 0);
+  return nonEmpty >= 4 || chars >= 160;
+}
+
+D. The AI prompts you should implement (grade + generate)
+These are the two prompt templates your backend should use for every stage.
+1) Grading prompt template (JSON only)
+SYSTEM:
+You are a strict product-development instructor. You grade the learner’s attempt using the rubric.
+Return ONLY valid JSON. No markdown. No extra keys.
+
+You must:
+- Score each rubric criterion from 0 to 3.
+- Produce an overallScore from 0 to 100.
+- List 2–4 strengths and 2–4 improvements.
+- Ask up to 5 missingInfoQuestions to make the attempt stronger.
+- Set readyToGenerate=true only if the attempt is coherent and meets minimum quality.
+
+USER:
+Stage: {{stage.title}}
+Concept: {{stage.concept}}
+
+Rubric Criteria:
+{{rubric list}}
+
+Learner Attempt (JSON):
+{{attempt}}
+
+Prior Context (JSON, may be empty):
+{{priorContext}}
+
+Return JSON with shape:
+{
+  "overallScore": number,
+  "criteria": [{"id": string, "score": 0|1|2|3, "reason": string}],
+  "strengths": string[],
+  "improvements": string[],
+  "missingInfoQuestions": string[],
+  "readyToGenerate": boolean
+}
+2) Generation prompt template (JSON only + explain learningNotes)
+SYSTEM:
+You are a product-development mentor. Use the learner’s attempt as the primary source of truth.
+If something is missing, make minimal assumptions and explicitly list them in the output.
+Return ONLY valid JSON. No markdown. No extra keys.
+
+USER:
+Stage: {{stage.title}}
+Output Spec (schema-ish):
+{{stage.ai_output_spec}}
+
+Learner Attempt (JSON):
+{{attempt}}
+
+Grade (JSON):
+{{grade}}
+
+Prior Context (JSON):
+{{priorContext}}
+
+Instructions:
+- Produce output matching Output Spec.
+- Include "learningNotes": explain (briefly) what you improved vs the learner’s attempt and why.
+
+Return JSON only.
+
+E. What Replit Agent should change in your app (file checklist)
+Backend
+shared/learningStages.ts (new)
+server/routes.ts add endpoints under /api/learning/...
+server/services/openai.ts add:
+gradeLearningAttempt(stageDef, attempt, priorContext)
+generateLearningArtifact(stageDef, attempt, grade, priorContext)
+Session storage
+Store under: session.data.learning[stageId] = { attempt, grade, artifact, updatedAt, status }
+Frontend
+src/pages/LearningStagePage.tsx (new)
+Add a “Learner Mode” route: /sessions/:id/learn/:stageId
+UI tabs: Learn / Do / AI Output
+Show attempt vs artifact side-by-side after generation
+
+If you tell me what your current stage page component is called (or upload the main stage UI file), I can write you a “drop-in” Agent prompt that references the exact filenames and wiring you already have (routes, query keys, navigation, etc.).
+

@@ -1,0 +1,180 @@
+Got you. Since I can’t record a video here, I’ll give you a **ready-to-follow “video syllabus”** (handy if you want to screen-record your own walkthrough) **plus** the exact steps and code to integrate the validator + graph converter into a Replit Agent app. I’m also linking the best step-by-step videos to watch alongside.
+
+# Watch these while you build (step-by-step videos)
+
+1. **Create & use Replit Agent (basics):** short intros and full course. ([YouTube][1])
+2. **Official docs (what an Agent app is & where to find it in the UI):** how to start an Agent app and use the Agent pane. ([Replit Docs][2])
+3. **JSON Schema validation (Python or Node/AJV):** pick your stack. ([YouTube][3], [JSON Schema][4])
+
+---
+
+# “Record-this” storyboard (what your step-by-step video should show)
+
+**Scene 1 (00:00–01:00) — Start an Agent app**
+Create → **Replit Agent** tab → describe app (“Flask (or Express) API that validates a FiveWhys object and returns a nodes/edges graph”). Show where the **Agent** tool lives in the dock. ([Replit Docs][2])
+
+**Scene 2 (01:00–02:30) — Add dependencies**
+
+* **Python**: `jsonschema`, `flask`, `uuid`.
+* **Node**: `express`, `ajv`, `uuid`, `cors`.
+  (Use the Packages panel or edit `requirements.txt` / `package.json`.)
+
+**Scene 3 (02:30–04:00) — Add the schema file**
+Create `schemas/five_whys.schema.json` and paste the schema I gave you earlier.
+
+**Scene 4 (04:00–07:00) — Paste validator + converter**
+Create `lib/five_whys.py` (Python) or `lib/five_whys.ts` (Node) and paste the snippets I gave you (the `validateFiveWhys`/`to_graph_view` functions).
+
+**Scene 5 (07:00–10:00) — Add an API route**
+Build a POST `/five-whys/validate` endpoint (validates + returns `graph_view`). Test with the built-in HTTP client or curl.
+
+**Scene 6 (10:00–12:00) — Quick demo**
+POST the example JSON → show success + graph payload. Mention you’ll plug the graph into a viewer later (e.g., Cytoscape.js).
+
+---
+
+# Do-it-now setup (copy/paste)
+
+## Option A — Python (Flask)
+
+**requirements.txt**
+
+```
+flask
+jsonschema>=4.0
+```
+
+**schemas/five\_whys.schema.json**
+(paste the JSON Schema I gave you earlier)
+
+**lib/five\_whys.py**
+(paste the Python snippet I gave you earlier with `validate_five_whys` and `to_graph_view`)
+
+**main.py**
+
+```python
+from flask import Flask, request, jsonify
+import json, os
+from jsonschema.exceptions import ValidationError
+
+from lib.five_whys import load_schema, validate_five_whys, to_graph_view
+
+app = Flask(__name__)
+SCHEMA_PATH = "schemas/five_whys.schema.json"
+SCHEMA = load_schema(SCHEMA_PATH)
+
+@app.post("/five-whys/validate")
+def five_whys_validate():
+    data = request.get_json(force=True, silent=False)
+    try:
+        validate_five_whys(data, SCHEMA)
+        graph = to_graph_view(data)
+        return jsonify({"ok": True, "graph_view": graph}), 200
+    except ValidationError as e:
+        return jsonify({"ok": False, "error": e.message}), 400
+
+@app.get("/")
+def ok():
+    return "FiveWhys API up"
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000)
+```
+
+**Test (Replit Shell)**
+
+```bash
+curl -s -X POST http://localhost:8000/five-whys/validate \
+  -H "Content-Type: application/json" \
+  -d @five_whys.example.json | jq .
+```
+
+## Option B — Node (Express + AJV)
+
+**package.json (add)**
+
+```json
+"dependencies": {
+  "express": "^4",
+  "ajv": "^8",
+  "uuid": "^9",
+  "cors": "^2"
+}
+```
+
+**schemas/five\_whys.schema.json**
+(paste the JSON Schema)
+
+**lib/five\_whys.ts**
+(paste the TS snippet with `validateFiveWhys` and `toGraphView`)
+
+**server.ts**
+
+```ts
+import express from "express";
+import cors from "cors";
+import fs from "fs";
+import Ajv from "ajv";
+import { toGraphView, validateFiveWhys, FiveWhysAnalysis } from "./lib/five_whys";
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const schema = JSON.parse(fs.readFileSync("schemas/five_whys.schema.json", "utf-8"));
+
+app.post("/five-whys/validate", (req, res) => {
+  try {
+    // ensure structure first with AJV
+    const ajv = new Ajv({ allErrors: true, strict: false });
+    const validate = ajv.compile(schema);
+    if (!validate(req.body)) {
+      return res.status(400).json({ ok: false, error: ajv.errorsText(validate.errors) });
+    }
+    // then use our typed validator + graph
+    const fwa = req.body as FiveWhysAnalysis;
+    validateFiveWhys(fwa);
+    const graph = toGraphView(fwa);
+    return res.json({ ok: true, graph_view: graph });
+  } catch (e:any) {
+    return res.status(400).json({ ok: false, error: e.message || "validation error" });
+  }
+});
+
+app.get("/", (_req, res) => res.send("FiveWhys API up"));
+
+app.listen(8000, () => console.log("Listening on :8000"));
+```
+
+**Test**
+
+```bash
+curl -s -X POST http://localhost:8000/five-whys/validate \
+  -H "Content-Type: application/json" \
+  -d @five_whys.example.json | jq .
+```
+
+---
+
+# Handy Agent prompts (paste into the Replit Agent chat)
+
+* **Python stack:**
+  *“Add Flask with a POST /five-whys/validate endpoint. Create `schemas/five_whys.schema.json` (I’ll paste a schema) and `lib/five_whys.py` with `validate_five_whys` and `to_graph_view`. Wire the endpoint to validate the body against the schema and return `{ ok, graph_view }`. Add `requirements.txt` for `flask` and `jsonschema`.”* ([Replit Docs][2])
+* **Node stack:**
+  *“Add Express with a POST /five-whys/validate endpoint. Create `schemas/five_whys.schema.json` and `lib/five_whys.ts` with `validateFiveWhys` and `toGraphView`. Use AJV to validate the body, then return `{ ok, graph_view }`. Install `express`, `ajv`, `uuid`, `cors`.”* ([Replit Docs][2])
+
+---
+
+## Extra learning while you record
+
+* **Agent UX & checkpoints** (useful for the “approve plan” step in your video). ([Replit Docs][2])
+* **AJV usage & patterns** (if you choose Node). ([YouTube][5])
+* **Python jsonschema basics** (if you choose Python). ([YouTube][3], [JSON Schema][4])
+
+If you want, I can also generate a tiny **Cytoscape.js** (or D3) page to visualize `graph_view` right inside the app so your video ends with a live graph demo.
+
+[1]: https://www.youtube.com/watch?v=IYiVPrxY8-Y&utm_source=chatgpt.com "Meet the Replit Agent"
+[2]: https://docs.replit.com/replitai/agent "Replit Docs"
+[3]: https://www.youtube.com/watch?v=o3ViNZpTaKE&utm_source=chatgpt.com "JSON Schema Validation in Python: Bring Structure Into JSON"
+[4]: https://json-schema.org/learn/getting-started-step-by-step?utm_source=chatgpt.com "Creating your first schema"
+[5]: https://www.youtube.com/watch?v=b9QHJAX8h6I&utm_source=chatgpt.com "Validating JSON with ajv"

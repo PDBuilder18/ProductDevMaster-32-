@@ -1,0 +1,143 @@
+Key Terms Every Product Developer Should Know
+A Helpful Reference for Building Your MVP
+What This Guide Is For
+Product development comes with a lot of new words.
+ This guide explains the most important product terms in plain language, so you can focus on building instead of memorizing jargon.
+You don’t need to know everything at once — just enough to make good decisions.
+
+Market Sizing Terms
+Market sizing helps you understand how big the opportunity really is.
+TAM — Total Addressable Market
+What it means:
+ TAM is the total number of people or businesses who could use your product if there were no limits at all.
+Why it matters:
+ It helps you understand the biggest possible opportunity your idea could reach.
+Simple way to think about it:
+ “If everyone who might need this product used it, how big would that be?”
+
+SAM — Serviceable Available Market
+What it means:
+ SAM is the part of the market you can realistically reach, based on things like location, focus, or resources.
+Why it matters:
+ It helps you set realistic goals, not just big dreams.
+Simple way to think about it:
+ “Who can I actually serve right now?”
+
+Problem-Solving Frameworks
+These tools help you understand why problems exist, not just what they look like.
+The 5 Whys Method
+What it means:
+ You ask “why?” over and over (usually five times) to uncover the real cause of a problem.
+Why it matters:
+ It helps you avoid fixing symptoms and instead fix the real issue underneath.
+Simple example:
+Why are orders late? → Because decisions are delayed
+
+
+Why are decisions delayed? → Because no one owns them
+
+
+Why does no one own them? → Because roles aren’t clear
+
+
+Now you’ve found something you can actually fix.
+
+Prioritization Frameworks
+These help you decide what to build first when you have more ideas than time.
+RICE Method
+What it means:
+ You score ideas based on:
+Reach – How many people it affects
+
+
+Impact – How much it helps them
+
+
+Confidence – How sure you are
+
+
+Effort – How much work it takes
+
+
+Why it matters:
+ It helps you compare ideas fairly and logically.
+Simple way to think about it:
+ “Which idea gives the most value for the least effort?”
+
+ICE Method
+What it means:
+ A simpler version of RICE:
+Impact
+
+
+Confidence
+
+
+Ease
+
+
+Why it matters:
+ It’s faster and useful when you need to make decisions quickly.
+Simple way to think about it:
+ “What’s impactful, likely to work, and easy to try?”
+
+MoSCoW Method
+What it means:
+ You group ideas into:
+Must Have – required for the product to work
+
+
+Should Have – important but not critical
+
+
+Could Have – nice extras
+
+
+Won’t Have (for now) – intentionally delayed
+
+
+Why it matters:
+ It prevents scope creep and keeps your MVP focused.
+Simple way to think about it:
+ “What do we need right now versus later?”
+
+Other Essential Product Terms
+MVP — Minimum Viable Product
+What it means:
+ The simplest version of your product that still solves the main problem.
+Why it matters:
+ It lets you test ideas with real users before spending too much time or money.
+Simple way to think about it:
+ “The smallest thing I can build to start learning.”
+
+PRD — Product Requirements Document
+What it means:
+ A document that explains:
+What the product should do
+
+
+Who it’s for
+
+
+Why it matters
+
+
+Why it matters:
+ It keeps everyone aligned and reduces confusion.
+Simple way to think about it:
+ “A shared plan so everyone builds the same thing.”
+
+Product-Market Fit
+What it means:
+ When your product solves a real problem so well that users keep coming back and recommend it.
+Why it matters:
+ This is the sign that it’s time to grow and invest more.
+Simple way to think about it:
+ “People would be disappointed if this product disappeared.”
+
+Final Thought
+You don’t need to memorize every term.
+ What matters is using these ideas to think clearly, make better decisions, and learn faster.
+Product development isn’t about fancy language — it’s about understanding problems and building smart solutions.
+
+© Smartware Advisors - 2026-27. All Rights Reserved.

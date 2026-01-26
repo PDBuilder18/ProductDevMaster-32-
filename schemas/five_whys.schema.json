@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/five-whys-analysis.schema.json",
+  "title": "Five Whys Analysis",
+  "description": "A structured five whys root cause analysis",
+  "type": "object",
+  "properties": {
+    "problem_statement": {
+      "type": "string",
+      "description": "The initial problem statement",
+      "minLength": 1
+    },
+    "analysis_id": {
+      "type": "string",
+      "description": "Unique identifier for this analysis"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this analysis was created"
+    },
+    "whys": {
+      "type": "array",
+      "description": "Array of why questions and answers",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "The why question being asked",
+            "minLength": 1
+          },
+          "answer": {
+            "type": "string",
+            "description": "The answer to the why question",
+            "minLength": 1
+          },
+          "level": {
+            "type": "integer",
+            "description": "The level/depth of this why (1-10)",
+            "minimum": 1,
+            "maximum": 10
+          }
+        },
+        "required": ["question", "answer", "level"],
+        "additionalProperties": false
+      }
+    },
+    "root_cause": {
+      "type": "string",
+      "description": "The identified root cause from the analysis",
+      "minLength": 1
+    },
+    "action_items": {
+      "type": "array",
+      "description": "Recommended action items to address the root cause",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "The specific action to take",
+            "minLength": 1
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["high", "medium", "low"],
+            "description": "Priority level for this action"
+          },
+          "owner": {
+            "type": "string",
+            "description": "Who is responsible for this action"
+          }
+        },
+        "required": ["action", "priority"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["problem_statement", "whys", "root_cause"],
+  "additionalProperties": false
+}

@@ -1,0 +1,66 @@
+<div id="PRODUCT_BUILDER" style="height: 200vh">
+  {% if customer %}
+    <script>
+      (async () => {
+        const customerId = '{{ customer.id }}';
+        const customerEmail = '{{ customer.email }}';
+
+        console.log('Checking customer in API:', customerId, customerEmail);
+
+        try {
+          // 1. Check if customer exists
+          const checkRes = await fetch('https://product-dev-master-14-swa110.replit.app/api/customers/' + customerId);
+
+          if (!checkRes.ok) {
+            console.log('Customer not found, creating...');
+            // 2. Create customer if not found
+            const createRes = await fetch('https://product-dev-master-14-swa110.replit.app/api/customers', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                customerId,
+                customerEmail,
+              }),
+            });
+
+            if (!createRes.ok) {
+              throw new Error('Failed to create customer in API');
+            }
+          }
+
+          console.log('Customer verified. Rendering iframe...');
+
+          // 3. Render iframe dynamically after successful API response
+          const iframe = document.createElement('iframe');
+          iframe.name = 'myiFrame';
+          iframe.width = '100%';
+          iframe.height = '100%';
+          iframe.scrolling = 'no';
+          iframe.marginWidth = '0';
+          iframe.marginHeight = '0';
+          iframe.style.border = '0px none #ffffff';
+          iframe.src = `https://product-dev-master-14-swa110.replit.app/?customer_id=${encodeURIComponent(
+            customerId
+          )}&customer_email=${encodeURIComponent(customerEmail)}`;
+
+          document.getElementById('PRODUCT_BUILDER').appendChild(iframe);
+        } catch (error) {
+          console.error('Error verifying customer:', error);
+          {% comment %} alert("We couldn't load the product builder. Please try again later."); {% endcomment %}
+        }
+      })();
+    </script>
+  {% else %}
+    <script>
+      console.log('No customer logged in - redirecting to login');
+      {% comment %} window.location.href = '{{ routes.account_login_url }}'; {% endcomment %}
+    </script>
+  {% endif %}
+</div>
+
+{% schema %}
+{
+  "name": "Product Builder",
+  "target": "section"
+}
+{% endschema %}

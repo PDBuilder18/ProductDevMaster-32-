@@ -1,0 +1,142 @@
+🧩 PRD: Sequoia Pitch Deck Integration in PDBuilder
+1. Overview
+
+Product Name: PDBuilder
+Feature: Sequoia Pitch Deck Template
+Owner: Product Development Team
+Release Target: Q1 2026 MVP
+
+Summary:
+This feature enables PDBuilder users to automatically generate and customize a Sequoia-style pitch deck (10-slide standard) from founder inputs, uploaded business docs, or AI-generated prompts. It ensures all essential investor-ready sections are included, formatted professionally, and exportable as PPTX, PDF, and shareable link formats.
+
+2. Objective
+
+Help founders build investor-grade pitch decks aligned with the Sequoia Capital framework in minutes.
+
+Standardize storytelling across PDBuilder users for consistency and credibility.
+
+Provide AI-assisted guidance, examples, and editable templates to accelerate deck creation.
+
+Success Metrics:
+
+≥ 75% completion rate from idea input → deck generation.
+
+≥ 60% of users export/share generated decks.
+
+≥ 30% of free users upgrade to premium for deck customization or AI coaching.
+
+3. Problem Statement
+
+Many early-stage founders struggle to:
+
+Structure their story in investor-standard formats.
+
+Design clear, consistent slides quickly.
+
+Align messaging with what VCs expect (market, traction, team, vision, etc.).
+
+The Sequoia template is widely recognized but hard to execute well. PDBuilder can solve this by making the format interactive, guided, and automated.
+
+4. Sequoia Deck Slide Structure
+#	Slide Title	Key Questions Answered	Inputs / Data Sources
+1	Problem	What pain are you solving? Why now?	Founder summary, market pain keywords
+2	Solution	How are you solving it?	Product description, screenshots
+3	Why Now	Why is this the right time?	Market timing, trends data
+4	Market Size	How big is the opportunity?	TAM/SAM/SOM (manual input or AI-estimated)
+5	Product	How does it work?	Uploaded deck, product demo, AI summary
+6	Business Model	How do you make money?	Revenue model input, pricing data
+7	Competition	Who else is in the space?	Uploaded list, AI competitor scan
+8	Team	Who’s building it and why you?	Founder profiles, LinkedIn import
+9	Financials	What’s your traction or projections?	CSV import or PDBuilder financial model
+10	Vision / Ask	What’s next? What are you raising?	Fundraising target, use of funds
+5. Core Features
+5.1. Deck Builder UI
+
+Modular slide editor with Sequoia preset layout.
+
+Sidebar with AI recommendations per slide (“Try rephrasing your Problem slide for clarity”).
+
+Inline drag-and-drop assets (logos, product images, charts).
+
+Export to PDF / PPTX / Link (via Notion-style or Canva-style viewer).
+
+5.2. AI Assistance
+
+“Auto-Generate Deck” button based on startup summary or uploaded docs (PDF, DOCX, or URL).
+
+Slide-level LLM prompts tuned for Sequoia pitch language.
+
+Smart gap detector — flags missing data (e.g., no TAM numbers or missing team roles).
+
+Style and tone suggestions (Investor-friendly / Technical / Visionary).
+
+5.3. Template System
+
+Default Sequoia layout (minimalist white background, bold headers).
+
+Option to switch to other templates (e.g., Y Combinator, a16z) in the future.
+
+Version control (v1–v3 drafts saved per user).
+
+5.4. Collaboration
+
+Real-time commenting & editing (like Google Slides).
+
+“Share for feedback” link with restricted view access.
+
+Option for mentor or advisor review mode.
+
+6. Technical Requirements
+Area	Requirement
+Frontend	React + Tailwind UI, dynamic slide rendering, live preview
+Backend	Node.js / Python service for AI generation (OpenAI + fallback Llama3), data persistence in PostgreSQL
+AI Layer	Fine-tuned prompt templates for each slide type
+Export Engine	PPTX and PDF generation using PptxGenJS or reportlab
+File Handling	PDF/DOCX ingestion via LangChain or LlamaIndex for contextual AI
+Integrations	Google Drive, Notion, Figma (future roadmap)
+Analytics	Track slide completion, export actions, and deck quality score
+7. User Flow
+
+User logs in → clicks “Create Deck.”
+
+Chooses Sequoia Template.
+
+Option 1: Upload business docs → auto-generate.
+Option 2: Manual slide-by-slide AI-assisted input.
+
+PDBuilder generates 10-slide deck preview.
+
+User edits slides, replaces visuals.
+
+Exports or shares deck.
+
+Analytics dashboard shows completion, engagement, and recommendations.
+
+8. Edge Cases / Acceptance Criteria
+Test	Expected Result
+Missing data for “Market Size”	AI suggests placeholders and “Estimate TAM” option
+PDF import with unclear text	AI fallback to OCR extraction
+Financial model missing	Prompt user to “Generate financials with PDBuilder AI”
+Deck export	Files match Sequoia visual and slide order spec
+9. Monetization / Tiering
+Tier	Features
+Free	Up to 5 slides, limited exports
+Pro ($15/mo)	Full 10-slide deck, PDF export, AI rephrasing
+Premium ($49/mo)	Advanced analytics, advisor review, integration with financial model builder
+10. Future Extensions
+
+Add other templates (YC, a16z, Seedcamp).
+
+Integration with investor databases (Crunchbase, AngelList).
+
+Automatic pitch narration (AI voiceover for video deck).
+
+Deck scoring vs. real Sequoia decks (AI evaluator).
+
+11. Open Questions
+
+Should users be able to remix or combine slides from different templates?
+
+Should PDBuilder support branded custom templates for accelerators or investors?
+
+How to handle sensitive uploaded data (privacy compliance / encryption)?
