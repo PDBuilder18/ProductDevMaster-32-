@@ -1,4 +1,4 @@
-import { sessions, feedback, customers, roadmaps, milestones, pitchDecks, pitchDeckSlides, type Session, type InsertSession, type InsertFeedback, type Feedback, type Customer, type InsertCustomer, type RoadmapSelect, type MilestoneSelect, type InsertRoadmap, type InsertMilestone, type PitchDeckSelect, type PitchDeckSlideSelect, type InsertPitchDeck, type InsertPitchDeckSlide } from "@shared/schema";
+import { sessions, feedback, customers, roadmaps, milestones, pitchDecks, pitchDeckSlides, type Session, type InsertSession, type InsertFeedback, type Feedback, type Customer, type InsertCustomer, type UpdateCustomer, type RoadmapSelect, type MilestoneSelect, type InsertRoadmap, type InsertMilestone, type PitchDeckSelect, type PitchDeckSlideSelect, type InsertPitchDeck, type InsertPitchDeckSlide } from "@shared/schema";
 import { nanoid } from "nanoid";
 
 export interface IStorage {
@@ -15,7 +15,8 @@ export interface IStorage {
   // Customer management
   getCustomer(customerId: string): Promise<Customer | undefined>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
-  updateCustomer(customerId: string, updates: Partial<Pick<Customer, 'customerEmail'>>): Promise<Customer>;
+  updateCustomer(customerId: string, updates: UpdateCustomer): Promise<Customer>;
+  deleteCustomer(customerId: string): Promise<void>;
   getAllCustomers(): Promise<Customer[]>;
   
   // Roadmap management
@@ -145,7 +146,17 @@ export class MemStorage implements IStorage {
     const customer: Customer = {
       id: this.currentCustomerId++,
       customerId: customerData.customerId,
-      customerEmail: customerData.customerEmail,
+      email: customerData.email,
+      firstName: customerData.firstName || null,
+      lastName: customerData.lastName || null,
+      subscriptionId: customerData.subscriptionId || null,
+      subscriptionStatus: customerData.subscriptionStatus || null,
+      subscriptionInterval: customerData.subscriptionInterval || null,
+      planName: customerData.planName || null,
+      subscribePlanName: customerData.subscribePlanName || null,
+      subscriptionPlanPrice: customerData.subscriptionPlanPrice || null,
+      actualAttempts: customerData.actualAttempts || 0,
+      usedAttempt: customerData.usedAttempt || 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -153,7 +164,7 @@ export class MemStorage implements IStorage {
     return customer;
   }
 
-  async updateCustomer(customerId: string, updates: Partial<Pick<Customer, 'customerEmail'>>): Promise<Customer> {
+  async updateCustomer(customerId: string, updates: UpdateCustomer): Promise<Customer> {
     const existing = this.customers.get(customerId);
     if (!existing) {
       throw new Error('Customer not found');
@@ -166,6 +177,14 @@ export class MemStorage implements IStorage {
     };
     this.customers.set(customerId, updated);
     return updated;
+  }
+
+  async deleteCustomer(customerId: string): Promise<void> {
+    const existing = this.customers.get(customerId);
+    if (!existing) {
+      throw new Error('Customer not found');
+    }
+    this.customers.delete(customerId);
   }
 
   async getAllCustomers(): Promise<Customer[]> {

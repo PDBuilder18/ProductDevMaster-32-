@@ -1,5 +1,5 @@
 import { db } from './db';
-import { sessions, feedback, customers, roadmaps, milestones, pitchDecks, pitchDeckSlides, type Session, type InsertSession, type InsertFeedback, type Feedback, type Customer, type InsertCustomer, type RoadmapSelect, type MilestoneSelect, type InsertRoadmap, type InsertMilestone, type PitchDeckSelect, type PitchDeckSlideSelect, type InsertPitchDeck, type InsertPitchDeckSlide } from '@shared/schema';
+import { sessions, feedback, customers, roadmaps, milestones, pitchDecks, pitchDeckSlides, type Session, type InsertSession, type InsertFeedback, type Feedback, type Customer, type InsertCustomer, type UpdateCustomer, type RoadmapSelect, type MilestoneSelect, type InsertRoadmap, type InsertMilestone, type PitchDeckSelect, type PitchDeckSlideSelect, type InsertPitchDeck, type InsertPitchDeckSlide } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import type { IStorage } from './storage';
 import { ensureTablesExist } from './migrations/migrate';
@@ -88,7 +88,17 @@ export class DatabaseStorage implements IStorage {
       .onConflictDoUpdate({
         target: customers.customerId,
         set: {
-          customerEmail: customerData.customerEmail,
+          email: customerData.email,
+          firstName: customerData.firstName,
+          lastName: customerData.lastName,
+          subscriptionId: customerData.subscriptionId,
+          subscriptionStatus: customerData.subscriptionStatus,
+          subscriptionInterval: customerData.subscriptionInterval,
+          planName: customerData.planName,
+          subscribePlanName: customerData.subscribePlanName,
+          subscriptionPlanPrice: customerData.subscriptionPlanPrice,
+          actualAttempts: customerData.actualAttempts,
+          usedAttempt: customerData.usedAttempt,
           updatedAt: new Date(),
         },
       })
@@ -96,7 +106,7 @@ export class DatabaseStorage implements IStorage {
     return customer;
   }
 
-  async updateCustomer(customerId: string, updates: Partial<Pick<Customer, 'customerEmail'>>): Promise<Customer> {
+  async updateCustomer(customerId: string, updates: UpdateCustomer): Promise<Customer> {
     const [customer] = await db
       .update(customers)
       .set({
@@ -111,6 +121,14 @@ export class DatabaseStorage implements IStorage {
     }
     
     return customer;
+  }
+
+  async deleteCustomer(customerId: string): Promise<void> {
+    const existing = await this.getCustomer(customerId);
+    if (!existing) {
+      throw new Error('Customer not found');
+    }
+    await db.delete(customers).where(eq(customers.customerId, customerId));
   }
 
   async getAllCustomers(): Promise<Customer[]> {
