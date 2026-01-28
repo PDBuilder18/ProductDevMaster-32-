@@ -28,14 +28,27 @@ export const feedback = pgTable("feedback", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Shopify customers
+// Comprehensive customers table with subscription management
 export const customers = pgTable("customers", {
   id: serial("id").primaryKey(),
   customerId: text("customer_id").notNull().unique(),
-  customerEmail: text("customer_email").notNull(),
+  email: text("email").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  subscriptionId: text("subscription_id"),
+  subscriptionStatus: text("subscription_status").$type<"active" | "paused" | "cancelled" | "expired">(),
+  subscriptionInterval: text("subscription_interval"),
+  planName: text("plan_name"),
+  subscribePlanName: text("subscribe_plan_name"),
+  subscriptionPlanPrice: integer("subscription_plan_price"),
+  actualAttempts: integer("actual_attempts").default(0),
+  usedAttempt: integer("used_attempt").default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// Custom customer schema with validation
+export const subscriptionStatusEnum = z.enum(["active", "paused", "cancelled", "expired"]);
 
 // Roadmaps for product planning
 export const roadmaps = pgTable("roadmaps", {
@@ -521,10 +534,22 @@ export const insertFeedbackSchema = createInsertSchema(feedback).omit({
   createdAt: true,
 });
 
-export const insertCustomerSchema = createInsertSchema(customers).omit({
+export const insertCustomerSchema = createInsertSchema(customers, {
+  email: z.string().email("Invalid email format"),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  subscriptionStatus: subscriptionStatusEnum.optional(),
+  subscriptionPlanPrice: z.number().min(0).optional(),
+  actualAttempts: z.number().min(0).default(0),
+  usedAttempt: z.number().min(0).default(0),
+}).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+});
+
+export const updateCustomerSchema = insertCustomerSchema.partial().omit({
+  customerId: true,
 });
 
 export const insertRoadmapSchema = createInsertSchema(roadmaps, {
@@ -575,6 +600,7 @@ export type Session = typeof sessions.$inferSelect;
 export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
 export type Feedback = typeof feedback.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
+export type UpdateCustomer = z.infer<typeof updateCustomerSchema>;
 export type Customer = typeof customers.$inferSelect;
 export type WorkflowData = z.infer<typeof workflowDataSchema>;
 export type ProblemStatement = z.infer<typeof problemStatementSchema>;

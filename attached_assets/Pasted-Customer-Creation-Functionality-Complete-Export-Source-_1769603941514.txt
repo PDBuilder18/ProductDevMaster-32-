@@ -1,0 +1,717 @@
+Customer Creation Functionality - Complete Export
+Source: Replit App 24
+Target: Replit App 32
+Date: October 14, 2025
+
+1. DATABASE LAYER
+Table Name
+customers
+
+Table Schema (Drizzle ORM - shared/schema.ts)
+import { pgTable, text, serial, integer, timestamp } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+// Comprehensive customers table with subscription management
+export const customers = pgTable("customers", {
+  id: serial("id").primaryKey(),
+  customerId: text("customer_id").notNull().unique(),
+  email: text("email").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  subscriptionId: text("subscription_id"),
+  subscriptionStatus: text("subscription_status").$type<"active" | "paused" | "cancelled" | "expired">(),
+  subscriptionInterval: text("subscription_interval"),
+  planName: text("plan_name"),
+  subscribePlanName: text("subscribe_plan_name"),
+  subscriptionPlanPrice: integer("subscription_plan_price"), // Store as cents to avoid decimal issues
+  actualAttempts: integer("actual_attempts").default(0),
+  usedAttempt: integer("used_attempt").default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+// Custom customer schema with validation
+export const subscriptionStatusEnum = z.enum(["active", "paused", "cancelled", "expired"]);
+export const insertCustomerSchema = createInsertSchema(customers, {
+  email: z.string().email("Invalid email format"),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  subscriptionStatus: subscriptionStatusEnum.optional(),
+  subscriptionPlanPrice: z.number().min(0).optional(),
+  actualAttempts: z.number().min(0).default(0),
+  usedAttempt: z.number().min(0).default(0),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const updateCustomerSchema = insertCustomerSchema.partial().omit({
+  customerId: true, // Cannot update customer ID
+});
+export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
+export type UpdateCustomer = z.infer<typeof updateCustomerSchema>;
+export type Customer = typeof customers.$inferSelect;
+Equivalent SQL (PostgreSQL)
+CREATE TABLE IF NOT EXISTS customers (
+  id SERIAL PRIMARY KEY,
+  customer_id TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL,
+  first_name TEXT,
+  last_name TEXT,
+  subscription_id TEXT,
+  subscription_status TEXT,
+  subscription_interval TEXT,
+  plan_name TEXT,
+  subscribe_plan_name TEXT,
+  subscription_plan_price INTEGER,
+  actual_attempts INTEGER DEFAULT 0,
+  used_attempt INTEGER DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+-- Index on customer_id for fast lookups
+CREATE UNIQUE INDEX IF NOT EXISTS customers_customer_id_idx ON customers(customer_id);
+Column Details
+Column	Type	Constraints	Default
+id	SERIAL	PRIMARY KEY	auto
+customer_id	TEXT	NOT NULL, UNIQUE	-
+email	TEXT	NOT NULL	-
+first_name	TEXT	-	NULL
+last_name	TEXT	-	NULL
+subscription_id	TEXT	-	NULL
+subscription_status	TEXT	-	NULL
+subscription_interval	TEXT	-	NULL
+plan_name	TEXT	-	NULL
+subscribe_plan_name	TEXT	-	NULL
+subscription_plan_price	INTEGER	-	NULL
+actual_attempts	INTEGER	-	0
+used_attempt	INTEGER	-	0
+created_at	TIMESTAMP	NOT NULL	NOW()
+updated_at	TIMESTAMP	NOT NULL	NOW()
+2. BACKEND API
+Create Customer Endpoint
+Endpoint: POST /api/customers
+HTTP Method: POST
+Authentication: None (Public endpoint)
+Middleware: None
+
+Request Payload (Accepts both snake_case and camelCase)
+{
+  "customer_id": "string (required)",
+  "email": "string (required, valid email format)",
+  "first_name": "string (optional)",
+  "last_name": "string (optional)",
+  "subscription_id": "string (optional)",
+  "subscription_status": "active|paused|cancelled|expired (optional)",
+  "subscription_interval": "string (optional)",
+  "plan_name": "string (optional)",
+  "subscribe_plan_name": "string (optional)",
+  "subscription_plan_price": "number (optional, min 0)",
+  "actual_attempts": "number (optional, default 0)",
+  "used_attempt": "number (optional, default 0)"
+}
+Alternative camelCase format:
+
+{
+  "customerId": "string (required)",
+  "email": "string (required)",
+  "firstName": "string (optional)",
+  "lastName": "string (optional)",
+  "subscriptionId": "string (optional)",
+  "subscriptionStatus": "active|paused|cancelled|expired (optional)",
+  "subscriptionInterval": "string (optional)",
+  "planName": "string (optional)",
+  "subscribePlanName": "string (optional)",
+  "subscriptionPlanPrice": "number (optional)",
+  "actualAttempts": "number (optional)",
+  "usedAttempt": "number (optional)"
+}
+Success Response (201 Created)
+{
+  "success": true,
+  "message": "Customer created successfully",
+  "data": {
+    "customer_id": "string",
+    "email": "string",
+    "first_name": "string|null",
+    "last_name": "string|null",
+    "subscription_id": "string|null",
+    "subscription_status": "string|null",
+    "subscription_interval": "string|null",
+    "plan_name": "string|null",
+    "subscribe_plan_name": "string|null",
+    "subscription_plan_price": "number|null",
+    "actual_attempts": "number",
+    "used_attempt": "number"
+  }
+}
+Error Responses
+409 Conflict (Customer already exists):
+
+{
+  "success": false,
+  "error": "Customer already exists"
+}
+400 Bad Request (Validation error):
+
+{
+  "success": false,
+  "error": "Invalid email format"
+}
+Validation Rules
+customer_id / customerId - Required, must be unique
+email - Required, must be valid email format
+subscription_status - Optional, must be one of: "active", "paused", "cancelled", "expired"
+subscription_plan_price - Optional, must be >= 0
+actual_attempts - Optional, defaults to 0, must be >= 0
+used_attempt - Optional, defaults to 0, must be >= 0
+3. BUSINESS LOGIC
+Step-by-Step Flow
+Receive POST request at /api/customers
+Normalize request body - Convert snake_case to camelCase using normalizeCustomerRequest()
+Validate data - Parse normalized data through insertCustomerSchema.parse()
+Check for duplicates - Query database for existing customer with same customerId
+If duplicate found - Return 409 Conflict error
+If no duplicate - Insert new customer into database
+Return response - Convert customer data to snake_case format and return with 201 status
+Data Processing Before Saving
+// Normalize snake_case or camelCase to camelCase
+const requestData = normalizeCustomerRequest(req.body);
+// Validate with Zod schema
+const customerData = insertCustomerSchema.parse(requestData);
+Duplicate Handling
+// Check if customer already exists
+const existingCustomer = await storage.getCustomer(customerData.customerId);
+if (existingCustomer) {
+  return res.status(409).json({ 
+    success: false, 
+    error: "Customer already exists" 
+  });
+}
+Error Handling
+try {
+  // ... create customer logic
+} catch (error: any) {
+  console.error("Customer creation error:", error.message || 'Unknown error');
+  res.status(400).json({ 
+    success: false, 
+    error: error.message 
+  });
+}
+4. SERVICE / CONTROLLER CODE
+Helper Function - normalizeCustomerRequest (server/routes.ts)
+// Helper function to normalize snake_case or camelCase request body to camelCase
+function normalizeCustomerRequest(body: any) {
+  const normalized: any = {};
+  
+  // Handle customerId / customer_id
+  if (body.customerId !== undefined) normalized.customerId = body.customerId;
+  else if (body.customer_id !== undefined) normalized.customerId = body.customer_id;
+  
+  // Handle email
+  if (body.email !== undefined) normalized.email = body.email;
+  
+  // Handle firstName / first_name
+  if (body.firstName !== undefined) normalized.firstName = body.firstName;
+  else if (body.first_name !== undefined) normalized.firstName = body.first_name;
+  
+  // Handle lastName / last_name
+  if (body.lastName !== undefined) normalized.lastName = body.lastName;
+  else if (body.last_name !== undefined) normalized.lastName = body.last_name;
+  
+  // Handle subscriptionId / subscription_id
+  if (body.subscriptionId !== undefined) normalized.subscriptionId = body.subscriptionId;
+  else if (body.subscription_id !== undefined) normalized.subscriptionId = body.subscription_id;
+  
+  // Handle subscriptionStatus / subscription_status
+  if (body.subscriptionStatus !== undefined) normalized.subscriptionStatus = body.subscriptionStatus;
+  else if (body.subscription_status !== undefined) normalized.subscriptionStatus = body.subscription_status;
+  
+  // Handle subscriptionInterval / subscription_interval
+  if (body.subscriptionInterval !== undefined) normalized.subscriptionInterval = body.subscriptionInterval;
+  else if (body.subscription_interval !== undefined) normalized.subscriptionInterval = body.subscription_interval;
+  
+  // Handle planName / plan_name
+  if (body.planName !== undefined) normalized.planName = body.planName;
+  else if (body.plan_name !== undefined) normalized.planName = body.plan_name;
+  
+  // Handle subscribePlanName / subscribe_plan_name
+  if (body.subscribePlanName !== undefined) normalized.subscribePlanName = body.subscribePlanName;
+  else if (body.subscribe_plan_name !== undefined) normalized.subscribePlanName = body.subscribe_plan_name;
+  
+  // Handle subscriptionPlanPrice / subscription_plan_price (allow 0 as valid value)
+  if (body.subscriptionPlanPrice !== undefined) normalized.subscriptionPlanPrice = body.subscriptionPlanPrice;
+  else if (body.subscription_plan_price !== undefined) normalized.subscriptionPlanPrice = body.subscription_plan_price;
+  
+  // Handle actualAttempts / actual_attempts (allow 0 as valid value)
+  if (body.actualAttempts !== undefined) normalized.actualAttempts = body.actualAttempts;
+  else if (body.actual_attempts !== undefined) normalized.actualAttempts = body.actual_attempts;
+  
+  // Handle usedAttempt / used_attempt (allow 0 as valid value)
+  if (body.usedAttempt !== undefined) normalized.usedAttempt = body.usedAttempt;
+  else if (body.used_attempt !== undefined) normalized.usedAttempt = body.used_attempt;
+  
+  return normalized;
+}
+Route Handler - POST /api/customers (server/routes.ts)
+import type { Express } from "express";
+import { storage } from "./storage";
+import { insertCustomerSchema } from "@shared/schema";
+// Create Customer - POST /api/customers
+app.post("/api/customers", async (req, res) => {
+  try {
+    console.log("Creating customer with data:", req.body?.customerId || req.body?.customer_id || 'unknown');
+    
+    // Normalize snake_case or camelCase to camelCase
+    const requestData = normalizeCustomerRequest(req.body);
+    const customerData = insertCustomerSchema.parse(requestData);
+    
+    // Check if customer already exists
+    const existingCustomer = await storage.getCustomer(customerData.customerId);
+    if (existingCustomer) {
+      return res.status(409).json({ 
+        success: false, 
+        error: "Customer already exists" 
+      });
+    }
+    
+    const customer = await storage.createCustomer(customerData);
+    
+    // Convert response to snake_case format
+    const response = {
+      success: true,
+      message: "Customer created successfully",
+      data: {
+        customer_id: customer.customerId,
+        email: customer.email,
+        first_name: customer.firstName,
+        last_name: customer.lastName,
+        subscription_id: customer.subscriptionId,
+        subscription_status: customer.subscriptionStatus,
+        subscription_interval: customer.subscriptionInterval,
+        plan_name: customer.planName,
+        subscribe_plan_name: customer.subscribePlanName,
+        subscription_plan_price: customer.subscriptionPlanPrice,
+        actual_attempts: customer.actualAttempts,
+        used_attempt: customer.usedAttempt,
+      }
+    };
+    
+    res.status(201).json(response);
+  } catch (error: any) {
+    console.error("Customer creation error:", error.message || 'Unknown error');
+    res.status(400).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+Storage Interface (server/storage.ts)
+import { customers, type Customer, type InsertCustomer, type UpdateCustomer } from "@shared/schema";
+export interface IStorage {
+  // Customer management
+  getCustomer(customerId: string): Promise<Customer | undefined>;
+  createCustomer(customer: InsertCustomer): Promise<Customer>;
+  updateCustomer(customerId: string, updates: UpdateCustomer): Promise<Customer>;
+  deleteCustomer(customerId: string): Promise<void>;
+  getAllCustomers(): Promise<Customer[]>;
+}
+Memory Storage Implementation (server/storage.ts)
+export class MemStorage implements IStorage {
+  private customers: Map<string, Customer>;
+  private currentCustomerId: number;
+  constructor() {
+    this.customers = new Map();
+    this.currentCustomerId = 1;
+  }
+  async getCustomer(customerId: string): Promise<Customer | undefined> {
+    return this.customers.get(customerId);
+  }
+  async createCustomer(customerData: InsertCustomer): Promise<Customer> {
+    const customer: Customer = {
+      id: this.currentCustomerId++,
+      customerId: customerData.customerId,
+      email: customerData.email,
+      firstName: customerData.firstName || null,
+      lastName: customerData.lastName || null,
+      subscriptionId: customerData.subscriptionId || null,
+      subscriptionStatus: customerData.subscriptionStatus || null,
+      subscriptionInterval: customerData.subscriptionInterval || null,
+      planName: customerData.planName || null,
+      subscribePlanName: customerData.subscribePlanName || null,
+      subscriptionPlanPrice: customerData.subscriptionPlanPrice || null,
+      actualAttempts: customerData.actualAttempts || 0,
+      usedAttempt: customerData.usedAttempt || 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.customers.set(customerData.customerId, customer);
+    return customer;
+  }
+  async updateCustomer(customerId: string, updates: UpdateCustomer): Promise<Customer> {
+    const existing = this.customers.get(customerId);
+    if (!existing) {
+      throw new Error('Customer not found');
+    }
+    const updated: Customer = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date(),
+    };
+    this.customers.set(customerId, updated);
+    return updated;
+  }
+  async deleteCustomer(customerId: string): Promise<void> {
+    const existing = this.customers.get(customerId);
+    if (!existing) {
+      throw new Error('Customer not found');
+    }
+    this.customers.delete(customerId);
+  }
+  async getAllCustomers(): Promise<Customer[]> {
+    return Array.from(this.customers.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+}
+Database Storage Implementation (server/database-storage.ts)
+import { db } from './db';
+import { customers, type Customer, type InsertCustomer, type UpdateCustomer } from '@shared/schema';
+import { eq } from 'drizzle-orm';
+import type { IStorage } from './storage';
+export class DatabaseStorage implements IStorage {
+  
+  // Customer management
+  async getCustomer(customerId: string): Promise<Customer | undefined> {
+    const [customer] = await db.select().from(customers).where(eq(customers.customerId, customerId));
+    return customer || undefined;
+  }
+  async createCustomer(customerData: InsertCustomer): Promise<Customer> {
+    const [customer] = await db
+      .insert(customers)
+      .values({
+        ...customerData,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return customer;
+  }
+  async updateCustomer(customerId: string, updates: UpdateCustomer): Promise<Customer> {
+    const [customer] = await db
+      .update(customers)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(customers.customerId, customerId))
+      .returning();
+    
+    if (!customer) {
+      throw new Error('Customer not found');
+    }
+    
+    return customer;
+  }
+  async deleteCustomer(customerId: string): Promise<void> {
+    const result = await db.delete(customers).where(eq(customers.customerId, customerId));
+    const customer = await this.getCustomer(customerId);
+    if (customer) {
+      await db.delete(customers).where(eq(customers.customerId, customerId));
+    } else {
+      throw new Error('Customer not found');
+    }
+  }
+  async getAllCustomers(): Promise<Customer[]> {
+    return await db.select().from(customers);
+  }
+}
+Database Connection (server/db.ts)
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import ws from "ws";
+import * as schema from "@shared/schema";
+neonConfig.webSocketConstructor = ws;
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL must be set. Did you forget to provision a database?",
+  );
+}
+export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+export const db = drizzle({ client: pool, schema });
+Storage Export (server/storage.ts - bottom section)
+import { DatabaseStorage } from './database-storage.js';
+let storage: IStorage;
+// Use PostgreSQL database if available, otherwise fall back to memory
+if (process.env.DATABASE_URL) {
+  try {
+    console.log('🗄️ Using PostgreSQL database...');
+    storage = new DatabaseStorage();
+    console.log('✅ PostgreSQL database storage initialized');
+  } catch (error) {
+    console.error('Database connection failed, falling back to memory storage:', error);
+    storage = new MemStorage();
+    console.log('Using memory storage (database connection failed)');
+  }
+} else {
+  // No database configured
+  storage = new MemStorage();
+  console.log('Using memory storage (no database configured)');
+}
+export { storage };
+5. FRONTEND (API CALL)
+No frontend component for customer creation
+Customer creation is done via direct API calls from external systems (e.g., Shopify webhooks, admin panels). There is no frontend UI for creating customers in this application.
+
+Example API Call (External)
+curl -X POST https://your-app.onrender.com/api/customers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "12345",
+    "email": "customer@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "subscription_status": "active",
+    "plan_name": "Growth"
+  }'
+6. ENVIRONMENT / CONFIG
+Required Environment Variables
+DATABASE_URL=postgresql://neondb_owner:PASSWORD@ep-HOST.neon.tech/neondb?sslmode=require
+Optional Environment Variables
+PGHOST=ep-HOST.neon.tech
+PGDATABASE=neondb
+PGPORT=5432
+PGUSER=neondb_owner
+PGPASSWORD=PASSWORD
+Drizzle Config (drizzle.config.ts)
+import { defineConfig } from "drizzle-kit";
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL, ensure the database is provisioned");
+}
+export default defineConfig({
+  out: "./migrations",
+  schema: "./shared/schema.ts",
+  dialect: "postgresql",
+  dbCredentials: {
+    url: process.env.DATABASE_URL,
+  },
+});
+Database Push Command
+npm run db:push
+# or force push
+npm run db:push --force
+7. DEPENDENCIES
+Core Dependencies (package.json)
+{
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "drizzle-orm": "^0.39.1",
+    "drizzle-zod": "^0.7.0",
+    "express": "^4.21.2",
+    "zod": "^3.24.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30.4",
+    "@types/express": "4.17.21",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.6.3"
+  }
+}
+Install Commands
+npm install @neondatabase/serverless drizzle-orm drizzle-zod express zod ws
+npm install -D drizzle-kit @types/express @types/ws typescript
+8. ADDITIONAL ENDPOINTS (Complete Customer CRUD)
+Get All Customers - GET /api/customers
+app.get("/api/customers", async (req, res) => {
+  try {
+    const customers = await storage.getAllCustomers();
+    
+    // Convert to snake_case format
+    const response = {
+      success: true,
+      data: customers.map(customer => ({
+        customer_id: customer.customerId,
+        email: customer.email,
+        first_name: customer.firstName,
+        last_name: customer.lastName,
+        subscription_id: customer.subscriptionId,
+        subscription_status: customer.subscriptionStatus,
+        subscription_interval: customer.subscriptionInterval,
+        plan_name: customer.planName,
+        subscribe_plan_name: customer.subscribePlanName,
+        subscription_plan_price: customer.subscriptionPlanPrice,
+        actual_attempts: customer.actualAttempts,
+        used_attempt: customer.usedAttempt,
+      }))
+    };
+    
+    res.json(response);
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+Get Single Customer - GET /api/customers/:id
+app.get("/api/customers/:id", async (req, res) => {
+  try {
+    const customer = await storage.getCustomer(req.params.id);
+    if (!customer) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Customer not found" 
+      });
+    }
+    
+    // Convert to snake_case format
+    const response = {
+      success: true,
+      data: {
+        customer_id: customer.customerId,
+        email: customer.email,
+        first_name: customer.firstName,
+        last_name: customer.lastName,
+        subscription_id: customer.subscriptionId,
+        subscription_status: customer.subscriptionStatus,
+        subscription_interval: customer.subscriptionInterval,
+        plan_name: customer.planName,
+        subscribe_plan_name: customer.subscribePlanName,
+        subscription_plan_price: customer.subscriptionPlanPrice,
+        actual_attempts: customer.actualAttempts,
+        used_attempt: customer.usedAttempt,
+      }
+    };
+    
+    res.json(response);
+  } catch (error: any) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+Update Customer - PUT /api/customers/:id
+app.put("/api/customers/:id", async (req, res) => {
+  try {
+    const customerId = req.params.id;
+    
+    // Check if customer exists
+    const existingCustomer = await storage.getCustomer(customerId);
+    if (!existingCustomer) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Customer not found" 
+      });
+    }
+    
+    // Normalize snake_case or camelCase to camelCase
+    const updateData = normalizeCustomerRequest(req.body);
+    
+    // Remove undefined values
+    const cleanUpdateData = Object.fromEntries(
+      Object.entries(updateData).filter(([_, value]) => value !== undefined)
+    );
+    
+    const validatedData = updateCustomerSchema.parse(cleanUpdateData);
+    const updatedCustomer = await storage.updateCustomer(customerId, validatedData);
+    
+    // Convert response to snake_case format
+    const response = {
+      success: true,
+      message: "Customer updated successfully",
+      data: {
+        customer_id: updatedCustomer.customerId,
+        email: updatedCustomer.email,
+        first_name: updatedCustomer.firstName,
+        last_name: updatedCustomer.lastName,
+        subscription_id: updatedCustomer.subscriptionId,
+        subscription_status: updatedCustomer.subscriptionStatus,
+        subscription_interval: updatedCustomer.subscriptionInterval,
+        plan_name: updatedCustomer.planName,
+        subscribe_plan_name: updatedCustomer.subscribePlanName,
+        subscription_plan_price: updatedCustomer.subscriptionPlanPrice,
+        actual_attempts: updatedCustomer.actualAttempts,
+        used_attempt: updatedCustomer.usedAttempt,
+      }
+    };
+    
+    res.json(response);
+  } catch (error: any) {
+    if (error.message === "Customer not found") {
+      res.status(404).json({ 
+        success: false, 
+        error: "Customer not found" 
+      });
+    } else {
+      res.status(400).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  }
+});
+Delete Customer - DELETE /api/customers/:id
+app.delete("/api/customers/:id", async (req, res) => {
+  try {
+    const customerId = req.params.id;
+    
+    // Check if customer exists
+    const existingCustomer = await storage.getCustomer(customerId);
+    if (!existingCustomer) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Customer not found" 
+      });
+    }
+    
+    await storage.deleteCustomer(customerId);
+    
+    // Return 204 No Content for successful deletion
+    res.status(204).send();
+  } catch (error: any) {
+    if (error.message === "Customer not found") {
+      res.status(404).json({ 
+        success: false, 
+        error: "Customer not found" 
+      });
+    } else {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  }
+});
+9. FILE STRUCTURE
+├── shared/
+│   └── schema.ts           # Customer table schema and types
+├── server/
+│   ├── db.ts               # Database connection
+│   ├── storage.ts          # IStorage interface + MemStorage
+│   ├── database-storage.ts # DatabaseStorage implementation
+│   └── routes.ts           # API routes including customer endpoints
+├── drizzle.config.ts       # Drizzle ORM configuration
+└── package.json            # Dependencies
+10. TESTING
+Test Create Customer
+curl -X POST http://localhost:5000/api/customers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "test123",
+    "email": "test@example.com",
+    "first_name": "Test",
+    "last_name": "User",
+    "subscription_status": "active",
+    "plan_name": "Starter"
+  }'
+Test Get Customer
+curl http://localhost:5000/api/customers/test123
+Test Update Customer
+curl -X PUT http://localhost:5000/api/customers/test123 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscription_status": "cancelled"
+  }'
+Test Delete Customer
+curl -X DELETE http://localhost:5000/api/customers/test123
+END OF DOCUMENTATION
+This document contains the complete, unmodified customer creation functionality from Replit App 24. Copy the code snippets directly into Replit App 32 to replicate the exact same functionality.
