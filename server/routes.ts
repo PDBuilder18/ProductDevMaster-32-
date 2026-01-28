@@ -9,6 +9,7 @@ import {
   insertSessionSchema, 
   insertFeedbackSchema,
   insertCustomerSchema,
+  updateCustomerSchema,
   insertRoadmapSchema,
   insertMilestoneSchema,
   insertPitchDeckSchema,
@@ -30,6 +31,66 @@ import {
   type PitchDeckSelect,
   type PitchDeckSlideSelect
 } from "@shared/schema";
+
+// Helper function to normalize snake_case or camelCase request body to camelCase
+function normalizeCustomerRequest(body: any) {
+  const normalized: any = {};
+  
+  if (body.customerId !== undefined) normalized.customerId = body.customerId;
+  else if (body.customer_id !== undefined) normalized.customerId = body.customer_id;
+  
+  if (body.email !== undefined) normalized.email = body.email;
+  
+  if (body.firstName !== undefined) normalized.firstName = body.firstName;
+  else if (body.first_name !== undefined) normalized.firstName = body.first_name;
+  
+  if (body.lastName !== undefined) normalized.lastName = body.lastName;
+  else if (body.last_name !== undefined) normalized.lastName = body.last_name;
+  
+  if (body.subscriptionId !== undefined) normalized.subscriptionId = body.subscriptionId;
+  else if (body.subscription_id !== undefined) normalized.subscriptionId = body.subscription_id;
+  
+  if (body.subscriptionStatus !== undefined) normalized.subscriptionStatus = body.subscriptionStatus;
+  else if (body.subscription_status !== undefined) normalized.subscriptionStatus = body.subscription_status;
+  
+  if (body.subscriptionInterval !== undefined) normalized.subscriptionInterval = body.subscriptionInterval;
+  else if (body.subscription_interval !== undefined) normalized.subscriptionInterval = body.subscription_interval;
+  
+  if (body.planName !== undefined) normalized.planName = body.planName;
+  else if (body.plan_name !== undefined) normalized.planName = body.plan_name;
+  
+  if (body.subscribePlanName !== undefined) normalized.subscribePlanName = body.subscribePlanName;
+  else if (body.subscribe_plan_name !== undefined) normalized.subscribePlanName = body.subscribe_plan_name;
+  
+  if (body.subscriptionPlanPrice !== undefined) normalized.subscriptionPlanPrice = body.subscriptionPlanPrice;
+  else if (body.subscription_plan_price !== undefined) normalized.subscriptionPlanPrice = body.subscription_plan_price;
+  
+  if (body.actualAttempts !== undefined) normalized.actualAttempts = body.actualAttempts;
+  else if (body.actual_attempts !== undefined) normalized.actualAttempts = body.actual_attempts;
+  
+  if (body.usedAttempt !== undefined) normalized.usedAttempt = body.usedAttempt;
+  else if (body.used_attempt !== undefined) normalized.usedAttempt = body.used_attempt;
+  
+  return normalized;
+}
+
+// Helper function to convert customer data to snake_case format for response
+function customerToSnakeCase(customer: any) {
+  return {
+    customer_id: customer.customerId,
+    email: customer.email,
+    first_name: customer.firstName,
+    last_name: customer.lastName,
+    subscription_id: customer.subscriptionId,
+    subscription_status: customer.subscriptionStatus,
+    subscription_interval: customer.subscriptionInterval,
+    plan_name: customer.planName,
+    subscribe_plan_name: customer.subscribePlanName,
+    subscription_plan_price: customer.subscriptionPlanPrice,
+    actual_attempts: customer.actualAttempts,
+    used_attempt: customer.usedAttempt,
+  };
+}
 import { openaiService } from "./services/openai";
 import { searchService } from "./services/search";
 import { documentService } from "./services/document";
@@ -216,31 +277,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Customer management - Public endpoint for Shopify integration
-  app.post("/api/customers", aiRateLimitMiddleware, async (req, res) => {
+  // Create Customer - POST /api/customers
+  app.post("/api/customers", async (req, res) => {
     try {
-      console.log("Processing customer data for customerId:", req.body?.customerId || 'unknown');
-      const customerData = insertCustomerSchema.parse(req.body);
+      console.log("Creating customer with data:", req.body?.customerId || req.body?.customer_id || 'unknown');
       
-      // Use atomic upsert operation (creates new or updates existing)
+      const requestData = normalizeCustomerRequest(req.body);
+      const customerData = insertCustomerSchema.parse(requestData);
+      
+      // Check if customer already exists
+      const existingCustomer = await storage.getCustomer(customerData.customerId);
+      if (existingCustomer) {
+        return res.status(409).json({ 
+          success: false, 
+          error: "Customer already exists" 
+        });
+      }
+      
       const customer = await storage.createCustomer(customerData);
       
-      // Return 201 for successful upsert operation
-      res.status(201).json(customer);
+      res.status(201).json({
+        success: true,
+        message: "Customer created successfully",
+        data: customerToSnakeCase(customer)
+      });
     } catch (error: any) {
-      console.error("Customer upsert error:", error.message || 'Unknown error');
-      res.status(400).json({ error: error.message });
+      console.error("Customer creation error:", error.message || 'Unknown error');
+      res.status(400).json({ 
+        success: false, 
+        error: error.message 
+      });
     }
   });
 
-  app.get("/api/customers/:customerId", async (req, res) => {
+  // Get All Customers - GET /api/customers
+  app.get("/api/customers", async (req, res) => {
     try {
-      const customer = await storage.getCustomer(req.params.customerId);
-      if (!customer) {
-        return res.status(404).json({ error: "Customer not found" });
-      }
-      res.json(customer);
+      const customers = await storage.getAllCustomers();
+      
+      res.json({
+        success: true,
+        data: customers.map(customerToSnakeCase)
+      });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get Single Customer - GET /api/customers/:id
+  app.get("/api/customers/:id", async (req, res) => {
+    try {
+      const customer = await storage.getCustomer(req.params.id);
+      if (!customer) {
+        return res.status(404).json({ 
+          success: false, 
+          error: "Customer not found" 
+        });
+      }
+      
+      res.json({
+        success: true,
+        data: customerToSnakeCase(customer)
+      });
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // Update Customer - PUT /api/customers/:id
+  app.put("/api/customers/:id", async (req, res) => {
+    try {
+      const customerId = req.params.id;
+      
+      const existingCustomer = await storage.getCustomer(customerId);
+      if (!existingCustomer) {
+        return res.status(404).json({ 
+          success: false, 
+          error: "Customer not found" 
+        });
+      }
+      
+      const updateData = normalizeCustomerRequest(req.body);
+      const cleanUpdateData = Object.fromEntries(
+        Object.entries(updateData).filter(([_, value]) => value !== undefined)
+      );
+      
+      const validatedData = updateCustomerSchema.parse(cleanUpdateData);
+      const updatedCustomer = await storage.updateCustomer(customerId, validatedData);
+      
+      res.json({
+        success: true,
+        message: "Customer updated successfully",
+        data: customerToSnakeCase(updatedCustomer)
+      });
+    } catch (error: any) {
+      console.error("Customer update error:", error.message || 'Unknown error');
+      res.status(400).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // Delete Customer - DELETE /api/customers/:id
+  app.delete("/api/customers/:id", async (req, res) => {
+    try {
+      const customerId = req.params.id;
+      
+      const existingCustomer = await storage.getCustomer(customerId);
+      if (!existingCustomer) {
+        return res.status(404).json({ 
+          success: false, 
+          error: "Customer not found" 
+        });
+      }
+      
+      await storage.deleteCustomer(customerId);
+      
+      res.json({
+        success: true,
+        message: "Customer deleted successfully"
+      });
+    } catch (error: any) {
+      console.error("Customer deletion error:", error.message || 'Unknown error');
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
     }
   });
 
