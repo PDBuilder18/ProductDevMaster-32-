@@ -33,6 +33,11 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
       return;
     }
 
+    if (import.meta.env.DEV) {
+      setAccessState("active");
+      return;
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const customerIdParam = urlParams.get("customer_id");
 
