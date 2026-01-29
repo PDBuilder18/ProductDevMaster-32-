@@ -34,7 +34,7 @@ interface CustomerAccessGateProps {
   children: React.ReactNode;
 }
 
-type AccessState = "loading" | "no_customer_id" | "not_found" | "inactive" | "expired" | "active";
+type AccessState = "loading" | "no_customer_id" | "not_found" | "paused" | "cancelled" | "expired" | "free_exhausted" | "active";
 
 function CustomerInfoBanner({ customer, isDevMode }: { customer: CustomerData | null; isDevMode: boolean }) {
   if (isDevMode && !customer) {
@@ -143,14 +143,29 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
       const data = result.data as CustomerData;
       setCustomerData(data);
 
-      if (data.subscription_status === "expired") {
-        setAccessState("expired");
-      } else if (data.subscription_status === "inactive" || data.subscription_status === "cancelled") {
-        setAccessState("inactive");
-      } else if (data.subscription_status === "active") {
-        setAccessState("active");
-      } else {
-        setAccessState("inactive");
+      // Check subscription status based on documented lifecycle
+      switch (data.subscription_status) {
+        case "active":
+          // For active users, check if free plan has exhausted attempts
+          const isFree = data.subscribe_plan_name === "Free" || data.plan_name === "Free";
+          if (isFree && data.used_attempt >= data.actual_attempts) {
+            setAccessState("free_exhausted");
+          } else {
+            setAccessState("active");
+          }
+          break;
+        case "paused":
+          setAccessState("paused");
+          break;
+        case "cancelled":
+          setAccessState("cancelled");
+          break;
+        case "expired":
+          setAccessState("expired");
+          break;
+        default:
+          // Handle null/undefined or unknown status
+          setAccessState("cancelled");
       }
     } catch (error) {
       console.error("Error checking customer access:", error);
@@ -204,52 +219,78 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
     );
   }
 
-  if (accessState === "inactive") {
-    const isFreeExhausted = customerData?.subscribe_plan_name === "Free";
-    
+  if (accessState === "free_exhausted") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
         <Card className="w-full max-w-md mx-4">
-          <CardContent className="pt-8 pb-8 text-center" data-testid="subscription-inactive">
-            {isFreeExhausted ? (
-              <>
-                <Sparkles className="w-12 h-12 mx-auto mb-4 text-purple-500" />
-                <h2 className="text-2xl font-bold text-foreground mb-3">Keep building</h2>
-                <p className="text-muted-foreground mb-2">
-                  You've used all free attempts.
-                </p>
-                <p className="text-muted-foreground mb-4">
-                  Unlock unlimited access for $20/month, or enter an access code to continue free.
-                </p>
-                <p className="text-sm text-muted-foreground mb-6">
-                  You can cancel your subscription anytime.
-                </p>
-                <Button 
-                  variant="default" 
-                  className="bg-purple-600 hover:bg-purple-700"
-                  onClick={() => window.open(SHOPIFY_UPGRADE_URL, "_blank")}
-                  data-testid="button-upgrade"
-                >
-                  Unlock Unlimited Access
-                </Button>
-              </>
-            ) : (
-              <>
-                <Lock className="w-12 h-12 mx-auto mb-4 text-red-500" />
-                <h2 className="text-xl font-semibold text-foreground mb-2">Subscription Inactive</h2>
-                <p className="text-muted-foreground mb-4">
-                  Your subscription is currently inactive. Please upgrade or renew to access the app.
-                </p>
-                <Button 
-                  variant="default" 
-                  className="bg-purple-600 hover:bg-purple-700"
-                  onClick={() => window.open(SHOPIFY_UPGRADE_URL, "_blank")}
-                  data-testid="button-upgrade"
-                >
-                  Upgrade Plan
-                </Button>
-              </>
-            )}
+          <CardContent className="pt-8 pb-8 text-center" data-testid="subscription-free-exhausted">
+            <Sparkles className="w-12 h-12 mx-auto mb-4 text-purple-500" />
+            <h2 className="text-2xl font-bold text-foreground mb-3">Keep building</h2>
+            <p className="text-muted-foreground mb-2">
+              You've used all free attempts.
+            </p>
+            <p className="text-muted-foreground mb-4">
+              Unlock unlimited access for $20/month, or enter an access code to continue free.
+            </p>
+            <p className="text-sm text-muted-foreground mb-6">
+              You can cancel your subscription anytime.
+            </p>
+            <Button 
+              variant="default" 
+              className="bg-purple-600 hover:bg-purple-700"
+              onClick={() => window.open(SHOPIFY_UPGRADE_URL, "_blank")}
+              data-testid="button-upgrade"
+            >
+              Unlock Unlimited Access
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (accessState === "paused") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="pt-8 pb-8 text-center" data-testid="subscription-paused">
+            <AlertCircle className="w-12 h-12 mx-auto mb-4 text-amber-500" />
+            <h2 className="text-xl font-semibold text-foreground mb-2">Subscription Paused</h2>
+            <p className="text-muted-foreground mb-4">
+              Your subscription is currently paused. Please resume your subscription to continue using the app.
+            </p>
+            <Button 
+              variant="default" 
+              className="bg-purple-600 hover:bg-purple-700"
+              onClick={() => window.open(SHOPIFY_ACCOUNT_URL, "_blank")}
+              data-testid="button-resume"
+            >
+              Manage Subscription
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (accessState === "cancelled") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="pt-8 pb-8 text-center" data-testid="subscription-cancelled">
+            <Lock className="w-12 h-12 mx-auto mb-4 text-red-500" />
+            <h2 className="text-xl font-semibold text-foreground mb-2">Subscription Cancelled</h2>
+            <p className="text-muted-foreground mb-4">
+              Your subscription has been cancelled. Please subscribe again to continue using the app.
+            </p>
+            <Button 
+              variant="default" 
+              className="bg-purple-600 hover:bg-purple-700"
+              onClick={() => window.open(SHOPIFY_UPGRADE_URL, "_blank")}
+              data-testid="button-resubscribe"
+            >
+              Subscribe Now
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -269,7 +310,7 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
             <Button 
               variant="default"
               className="bg-purple-600 hover:bg-purple-700"
-              onClick={() => window.parent.postMessage({ type: "RENEW_SUBSCRIPTION" }, "*")}
+              onClick={() => window.open(SHOPIFY_UPGRADE_URL, "_blank")}
               data-testid="button-renew"
             >
               Renew Subscription

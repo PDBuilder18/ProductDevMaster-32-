@@ -1,0 +1,395 @@
+Subscription Status Lifecycle Documentation
+Source: Replit App 24
+Target: Replit App 32
+Date: October 14, 2025
+
+1. SUBSCRIPTION STATUS VALUES
+Status	Description	When It Occurs	User Access
+active	Subscription is active and valid	Customer subscribes, payment successful, subscription renewed	Full access based on plan
+paused	Subscription temporarily paused	Customer requests pause, billing issue being resolved	No access
+cancelled	Customer cancelled subscription	Customer cancels, refund processed, chargeback	No access
+expired	Subscription period ended	Subscription end date passed, renewal failed, trial ended	No access
+2. STATUS LIFECYCLE FLOW
+NEW CUSTOMER
+     │
+     ▼
+  ┌─────────┐
+  │ (null)  │ ──── Initial state, no subscription
+  └────┬────┘
+       │
+       │ Customer subscribes / Payment success
+       ▼
+  ┌─────────┐
+  │ ACTIVE  │ ──── Full access to allowed steps
+  └────┬────┘
+       │
+       ├──────────────────────────────────────┐
+       │                                      │
+       ▼                                      ▼
+  ┌─────────┐                           ┌──────────┐
+  │ PAUSED  │ ◄───────────────────────► │ EXPIRED  │
+  └────┬────┘   Resume / Re-subscribe   └────┬─────┘
+       │                                      │
+       │                                      │
+       │     Customer cancels                 │
+       ▼                                      ▼
+  ┌───────────┐                         ┌───────────┐
+  │ CANCELLED │                         │ CANCELLED │
+  └───────────┘                         └───────────┘
+3. WHEN EACH STATUS IS SET
+3.1 active
+Set when:
+
+New subscription created with successful payment
+Subscription renewed successfully
+Customer reactivates after pause
+Customer re-subscribes after cancellation/expiry
+Admin manually activates subscription
+Example API call:
+
+curl -X POST /api/customers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "cust_001",
+    "email": "user@example.com",
+    "subscription_status": "active",
+    "plan_name": "Growth"
+  }'
+Example update:
+
+curl -X PUT /api/customers/cust_001 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscription_status": "active"
+  }'
+3.2 paused
+Set when:
+
+Customer requests temporary pause
+Payment method requires update (grace period)
+Billing issue being investigated
+Admin pauses for support reasons
+Example API call:
+
+curl -X PUT /api/customers/cust_001 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscription_status": "paused"
+  }'
+Typical scenarios:
+
+Customer going on vacation, wants to pause billing
+Credit card expired, waiting for new card
+Customer support investigating an issue
+Temporary account hold
+3.3 cancelled
+Set when:
+
+Customer explicitly cancels subscription
+Refund processed
+Chargeback received
+Fraud detected
+Admin cancels subscription
+Customer requests account deletion
+Example API call:
+
+curl -X PUT /api/customers/cust_001 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscription_status": "cancelled"
+  }'
+Typical scenarios:
+
+Customer clicks "Cancel Subscription" button
+Customer requests refund
+Bank issues chargeback
+Account flagged for fraud
+Customer deletes their account
+3.4 expired
+Set when:
+
+Subscription end date passed without renewal
+Payment failed after all retry attempts exhausted
+Free trial ended without conversion to paid
+Promotional/discount period ended
+One-time subscription period completed
+Example API call:
+
+curl -X PUT /api/customers/cust_001 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscription_status": "expired"
+  }'
+Typical scenarios:
+
+Monthly subscription ended, no renewal
+Payment failed 3 times, no update from customer
+14-day free trial ended
+Annual subscription reached end date
+Lifetime deal period ended (if time-limited)
+4. ACCESS CONTROL LOGIC
+4.1 Core Validation Function
+From server/routes.ts:
+
+interface AccessValidation {
+  hasAccess: boolean;
+  reason?: string;
+  allowedSteps: number[];
+}
+function validateSubscriptionAccess(customer: any): AccessValidation {
+  // ONLY 'active' status grants access
+  if (customer.subscriptionStatus !== 'active') {
+    return {
+      hasAccess: false,
+      reason: `Your subscription is ${customer.subscriptionStatus || 'inactive'}. Please activate your subscription to continue.`,
+      allowedSteps: []
+    };
+  }
+  
+  const planName = (customer.planName || '').toLowerCase();
+  const subscribePlanName = (customer.subscribePlanName || '').toLowerCase();
+  const isFree = planName === 'free' || subscribePlanName === 'free';
+  
+  // Free plan validation
+  if (isFree) {
+    const actualAttempts = customer.actualAttempts || 3;
+    const usedAttempt = customer.usedAttempt || 0;
+    
+    if (usedAttempt >= actualAttempts) {
+      return {
+        hasAccess: false,
+        reason: `You have used all ${actualAttempts} attempts on your Free plan. Please upgrade to continue using the application.`,
+        allowedSteps: []
+      };
+    }
+    
+    // Free plan gets all 13 steps
+    return {
+      hasAccess: true,
+      allowedSteps: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+    };
+  }
+  
+  // Paid plan validations
+  if (planName === 'starter') {
+    return {
+      hasAccess: true,
+      allowedSteps: [1, 2, 3, 4, 5, 6, 7, 8, 9] // Steps 1-9 only
+    };
+  }
+  
+  if (planName === 'growth') {
+    return {
+      hasAccess: true,
+      allowedSteps: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] // Steps 1-11 only
+    };
+  }
+  
+  if (planName === 'pro') {
+    return {
+      hasAccess: true,
+      allowedSteps: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] // All 13 steps
+    };
+  }
+  
+  // Default: treat unknown plans as basic access
+  return {
+    hasAccess: true,
+    allowedSteps: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+  };
+}
+4.2 Access Rules Summary
+Status	hasAccess	allowedSteps
+active	true	Based on plan
+paused	false	[] (empty)
+cancelled	false	[] (empty)
+expired	false	[] (empty)
+null / undefined	false	[] (empty)
+4.3 Plan-Based Step Restrictions (when active)
+Plan	Allowed Steps	Unlimited Attempts
+Free	1-13 (all)	No (limited to 3)
+Starter	1-9	Yes
+Growth	1-11	Yes
+Pro	1-13 (all)	Yes
+5. STATUS TRANSITIONS
+5.1 Valid Transitions
+null → active         (new subscription)
+active → paused       (customer pauses)
+active → cancelled    (customer cancels)
+active → expired      (subscription ends)
+paused → active       (customer resumes)
+paused → cancelled    (customer cancels while paused)
+paused → expired      (pause period ends)
+expired → active      (customer re-subscribes)
+cancelled → active    (customer re-subscribes)
+5.2 Transition Matrix
+From \ To	active	paused	cancelled	expired
+null	YES	NO	NO	NO
+active	-	YES	YES	YES
+paused	YES	-	YES	YES
+cancelled	YES	NO	-	NO
+expired	YES	NO	NO	-
+6. INTEGRATION WITH EXTERNAL SYSTEMS
+6.1 Shopify Subscription Webhook Events
+Webhook Event	Set Status To	Notes
+subscription_contracts/create	active	New subscription created
+subscription_contracts/activate	active	Subscription activated
+subscription_billing_cycles/create	active	Renewal successful
+subscription_contracts/pause	paused	Customer paused
+subscription_contracts/resume	active	Customer resumed
+subscription_contracts/cancel	cancelled	Customer cancelled
+subscription_contracts/expire	expired	Contract expired
+6.2 Stripe Subscription Webhook Events
+Webhook Event	Set Status To	Notes
+customer.subscription.created	active	New subscription
+customer.subscription.updated (status=active)	active	Subscription updated
+customer.subscription.updated (status=paused)	paused	Subscription paused
+customer.subscription.deleted	cancelled	Subscription cancelled
+customer.subscription.updated (status=past_due)	paused	Payment failed
+customer.subscription.updated (status=unpaid)	expired	Unpaid after retries
+invoice.payment_succeeded	active	Renewal successful
+invoice.payment_failed	paused	Payment failed
+6.3 Generic Payment Gateway Mapping
+Event Type	Set Status To
+Payment Success	active
+Payment Failed (first)	paused
+Payment Failed (final)	expired
+Customer Cancel	cancelled
+Refund Processed	cancelled
+Chargeback	cancelled
+Trial Started	active
+Trial Ended (no conversion)	expired
+Subscription Renewed	active
+Subscription End Date Reached	expired
+7. SCHEMA DEFINITION
+From shared/schema.ts:
+
+// Subscription status enum
+export const subscriptionStatusEnum = z.enum(["active", "paused", "cancelled", "expired"]);
+// Customer table with subscription_status field
+export const customers = pgTable("customers", {
+  id: serial("id").primaryKey(),
+  customerId: text("customer_id").notNull().unique(),
+  email: text("email").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  subscriptionId: text("subscription_id"),
+  subscriptionStatus: text("subscription_status").$type<"active" | "paused" | "cancelled" | "expired">(),
+  subscriptionInterval: text("subscription_interval"),
+  planName: text("plan_name"),
+  subscribePlanName: text("subscribe_plan_name"),
+  subscriptionPlanPrice: integer("subscription_plan_price"),
+  actualAttempts: integer("actual_attempts").default(0),
+  usedAttempt: integer("used_attempt").default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+8. API EXAMPLES
+8.1 Create Customer with Active Subscription
+curl -X POST http://localhost:5000/api/customers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "shop_12345",
+    "email": "customer@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "subscription_status": "active",
+    "plan_name": "Growth",
+    "actual_attempts": 0,
+    "used_attempt": 0
+  }'
+8.2 Pause Subscription
+curl -X PUT http://localhost:5000/api/customers/shop_12345 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscription_status": "paused"
+  }'
+8.3 Cancel Subscription
+curl -X PUT http://localhost:5000/api/customers/shop_12345 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscription_status": "cancelled"
+  }'
+8.4 Expire Subscription
+curl -X PUT http://localhost:5000/api/customers/shop_12345 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscription_status": "expired"
+  }'
+8.5 Reactivate Subscription
+curl -X PUT http://localhost:5000/api/customers/shop_12345 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscription_status": "active"
+  }'
+8.6 Upgrade Plan (while keeping active)
+curl -X PUT http://localhost:5000/api/customers/shop_12345 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscription_status": "active",
+    "plan_name": "Pro"
+  }'
+9. BLOCKED ACCESS PAGE
+When subscription status is NOT active, users see a blocked access page:
+
+From server/routes.ts:
+
+function generateBlockedPage(title: string, message: string): string {
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Access Denied - PDBUILDER</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          margin: 0;
+          padding: 0;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .container {
+          background: white;
+          padding: 3rem;
+          border-radius: 16px;
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+          text-align: center;
+          max-width: 400px;
+          margin: 2rem;
+        }
+        h1 { color: #111827; margin-bottom: 1rem; font-size: 1.5rem; }
+        p { color: #6b7280; line-height: 1.6; margin-bottom: 2rem; }
+        .contact { background: #f9fafb; padding: 1rem; border-radius: 8px; font-size: 0.875rem; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>${title}</h1>
+        <p>${message}</p>
+        <div class="contact">
+          <strong>Need help?</strong><br>
+          Contact your administrator or upgrade your subscription to continue.
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+10. SUMMARY
+Key Rules:
+Only active grants access - All other statuses block the user
+Status is stored as TEXT - Enum validation happens in application layer via Zod
+Status can be updated via PUT - External systems (Shopify, Stripe) call API to update status
+Plan determines step access - When active, plan_name controls which steps are available
+Free plan has attempt limits - actual_attempts and used_attempt track usage
+Quick Reference:
+active    = User can access (based on plan)
+paused    = User blocked (temporary)
+cancelled = User blocked (permanent unless re-subscribe)
+expired   = User blocked (subscription ended)
+null      = User blocked (no subscription)
