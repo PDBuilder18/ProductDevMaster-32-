@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 
 const SHOPIFY_ACCOUNT_URL = import.meta.env.VITE_SHOPIFY_ACCOUNT_URL || "https://pd-test-7300.myshopify.com/account";
 const SHOPIFY_UPGRADE_URL = import.meta.env.VITE_SHOPIFY_UPGRADE_URL || "https://pd-test-7300.myshopify.com/products/basic?_pos=1&_sid=c1123c2ae&_ss=r";
+const SHOPIFY_SUBSCRIPTIONS_URL = import.meta.env.VITE_SHOPIFY_SUBSCRIPTIONS_URL || "https://pd-test-7300.myshopify.com/pages/subscriptions";
 
 interface CustomerData {
   customer_id: string;
@@ -262,7 +263,7 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
             <Button 
               variant="default" 
               className="bg-purple-600 hover:bg-purple-700"
-              onClick={() => window.open(SHOPIFY_ACCOUNT_URL, "_blank")}
+              onClick={() => window.open(SHOPIFY_SUBSCRIPTIONS_URL, "_blank")}
               data-testid="button-resume"
             >
               Manage Subscription
