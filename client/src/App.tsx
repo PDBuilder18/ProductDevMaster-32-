@@ -12,6 +12,7 @@ import { FiveWhysDemo } from "@/components/visualization/FiveWhysDemo";
 import PitchDeck from "@/pages/pitch-deck";
 import TermsOfUse from "@/pages/terms-of-use";
 import NotFound from "@/pages/not-found";
+import { CustomerAccessGate } from "@/components/CustomerAccessGate";
 
 function RequireTerms({ children }: { children: React.ReactNode }) {
   const termsAccepted = localStorage.getItem('pdbuilder_terms_accepted') === 'true';
@@ -74,8 +75,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <CustomerAccessGate>
+          <Toaster />
+          <Router />
+        </CustomerAccessGate>
       </TooltipProvider>
     </QueryClientProvider>
   );
