@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 const SHOPIFY_ACCOUNT_URL = import.meta.env.VITE_SHOPIFY_ACCOUNT_URL || "https://pd-test-7300.myshopify.com/account";
+const SHOPIFY_UPGRADE_URL = import.meta.env.VITE_SHOPIFY_UPGRADE_URL || "https://pd-test-7300.myshopify.com/products/basic?_pos=1&_sid=c1123c2ae&_ss=r";
 
 interface CustomerData {
   customer_id: string;
@@ -204,26 +205,51 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
   }
 
   if (accessState === "inactive") {
+    const isFreeExhausted = customerData?.subscribe_plan_name === "Free";
+    
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
         <Card className="w-full max-w-md mx-4">
           <CardContent className="pt-8 pb-8 text-center" data-testid="subscription-inactive">
-            <Lock className="w-12 h-12 mx-auto mb-4 text-red-500" />
-            <h2 className="text-xl font-semibold text-foreground mb-2">Subscription Inactive</h2>
-            <p className="text-muted-foreground mb-4">
-              {customerData?.subscribe_plan_name === "Free" 
-                ? `You've used all ${customerData?.actual_attempts} free attempts. Please upgrade to continue.`
-                : "Your subscription is currently inactive. Please upgrade or renew to access the app."
-              }
-            </p>
-            <Button 
-              variant="default" 
-              className="bg-purple-600 hover:bg-purple-700"
-              onClick={() => window.parent.postMessage({ type: "UPGRADE_SUBSCRIPTION" }, "*")}
-              data-testid="button-upgrade"
-            >
-              Upgrade Plan
-            </Button>
+            {isFreeExhausted ? (
+              <>
+                <Sparkles className="w-12 h-12 mx-auto mb-4 text-purple-500" />
+                <h2 className="text-2xl font-bold text-foreground mb-3">Keep building</h2>
+                <p className="text-muted-foreground mb-2">
+                  You've used all free attempts.
+                </p>
+                <p className="text-muted-foreground mb-4">
+                  Unlock unlimited access for $20/month, or enter an access code to continue free.
+                </p>
+                <p className="text-sm text-muted-foreground mb-6">
+                  You can cancel your subscription anytime.
+                </p>
+                <Button 
+                  variant="default" 
+                  className="bg-purple-600 hover:bg-purple-700"
+                  onClick={() => window.open(SHOPIFY_UPGRADE_URL, "_blank")}
+                  data-testid="button-upgrade"
+                >
+                  Unlock Unlimited Access
+                </Button>
+              </>
+            ) : (
+              <>
+                <Lock className="w-12 h-12 mx-auto mb-4 text-red-500" />
+                <h2 className="text-xl font-semibold text-foreground mb-2">Subscription Inactive</h2>
+                <p className="text-muted-foreground mb-4">
+                  Your subscription is currently inactive. Please upgrade or renew to access the app.
+                </p>
+                <Button 
+                  variant="default" 
+                  className="bg-purple-600 hover:bg-purple-700"
+                  onClick={() => window.open(SHOPIFY_UPGRADE_URL, "_blank")}
+                  data-testid="button-upgrade"
+                >
+                  Upgrade Plan
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
