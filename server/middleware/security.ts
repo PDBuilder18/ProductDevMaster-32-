@@ -122,12 +122,16 @@ export function validateRequest(req: Request, res: Response, next: NextFunction)
   
   const isWorkflowEndpoint = workflowEndpoints.some(endpoint => req.path.includes(endpoint));
   
+  // Skip body validation for endpoints that don't require a request body
+  const noBodyRequiredEndpoints = ['/complete-attempt'];
+  const isNoBodyEndpoint = noBodyRequiredEndpoints.some(endpoint => req.path.includes(endpoint));
+  
   // Skip validation for multipart/form-data requests (file uploads)
   const isMultipartFormData = req.headers['content-type']?.includes('multipart/form-data');
   
   // Basic request validation
   if (req.method === 'POST' || req.method === 'PATCH') {
-    if (!isWorkflowEndpoint && !isRestoreEndpoint && !isMultipartFormData && (!req.body || Object.keys(req.body).length === 0)) {
+    if (!isWorkflowEndpoint && !isRestoreEndpoint && !isNoBodyEndpoint && !isMultipartFormData && (!req.body || Object.keys(req.body).length === 0)) {
       return res.status(400).json({ error: 'Request body is required' });
     }
   }
