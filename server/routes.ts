@@ -92,6 +92,7 @@ function customerToSnakeCase(customer: any) {
   };
 }
 import { openaiService } from "./services/openai";
+import { subscriptionService } from "./services/subscription";
 import { searchService } from "./services/search";
 import { documentService } from "./services/document";
 import { aiConversationService } from "./services/ai-conversation";
@@ -278,12 +279,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Customer management - Public endpoint for Shopify integration
   // Create Customer - POST /api/customers
+  // Auto-assigns Free plan if no paid subscription exists
   app.post("/api/customers", async (req, res) => {
     try {
       console.log("Creating customer with data:", req.body?.customerId || req.body?.customer_id || 'unknown');
       
       const requestData = normalizeCustomerRequest(req.body);
-      const customerData = insertCustomerSchema.parse(requestData);
+      
+      // Apply Free plan defaults if no paid subscription is provided
+      const dataWithFreePlan = subscriptionService.applyFreePlanIfNeeded(requestData);
+      
+      const customerData = insertCustomerSchema.parse(dataWithFreePlan);
       
       // Check if customer already exists
       const existingCustomer = await storage.getCustomer(customerData.customerId);
@@ -406,6 +412,117 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Customer deletion error:", error.message || 'Unknown error');
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // ============================================
+  // SUBSCRIPTION & ATTEMPT MANAGEMENT ENDPOINTS
+  // ============================================
+
+  // Get Subscription Status - GET /api/customers/:id/subscription-status
+  // Returns current subscription status, remaining attempts, and plan info
+  // Used by Shopify to determine user access and redirects
+  app.get("/api/customers/:id/subscription-status", async (req, res) => {
+    try {
+      const customerId = req.params.id;
+      
+      const status = await subscriptionService.getSubscriptionStatus(customerId);
+      
+      if (!status) {
+        return res.status(404).json({ 
+          success: false, 
+          error: "Customer not found" 
+        });
+      }
+      
+      res.json({
+        success: true,
+        data: status
+      });
+    } catch (error: any) {
+      console.error("Subscription status error:", error.message || 'Unknown error');
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // Complete User Attempt - POST /api/customers/:id/complete-attempt
+  // Called when a user completes all 12 workflow steps
+  // Increments used_attempt and updates subscription_status if limit reached
+  app.post("/api/customers/:id/complete-attempt", async (req, res) => {
+    try {
+      const customerId = req.params.id;
+      
+      const result = await subscriptionService.completeUserAttempt(customerId);
+      
+      res.json({
+        success: result.success,
+        message: result.message,
+        data: {
+          subscription_status: result.subscription_status,
+          used_attempt: result.used_attempt,
+          actual_attempts: result.actual_attempts,
+          remaining_attempts: result.remaining_attempts
+        }
+      });
+    } catch (error: any) {
+      if (error.message === "Customer not found") {
+        return res.status(404).json({ 
+          success: false, 
+          error: "Customer not found" 
+        });
+      }
+      console.error("Complete attempt error:", error.message || 'Unknown error');
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // Update Paid Subscription - POST /api/customers/:id/subscription
+  // Called by Shopify webhook when a paid subscription is created or updated
+  // Resets attempt limits and activates subscription
+  app.post("/api/customers/:id/subscription", async (req, res) => {
+    try {
+      const customerId = req.params.id;
+      const requestData = normalizeCustomerRequest(req.body);
+      
+      // Validate required fields for paid subscription
+      if (!requestData.subscriptionId || !requestData.planName) {
+        return res.status(400).json({
+          success: false,
+          error: "subscription_id and plan_name are required"
+        });
+      }
+      
+      const updatedCustomer = await subscriptionService.updatePaidSubscription(customerId, {
+        subscriptionId: requestData.subscriptionId,
+        planName: requestData.planName,
+        subscriptionInterval: requestData.subscriptionInterval,
+        subscriptionPlanPrice: requestData.subscriptionPlanPrice,
+        actualAttempts: requestData.actualAttempts,
+      });
+      
+      res.json({
+        success: true,
+        message: "Subscription updated successfully",
+        data: customerToSnakeCase(updatedCustomer)
+      });
+    } catch (error: any) {
+      if (error.message === "Customer not found") {
+        return res.status(404).json({ 
+          success: false, 
+          error: "Customer not found" 
+        });
+      }
+      console.error("Subscription update error:", error.message || 'Unknown error');
       res.status(500).json({ 
         success: false, 
         error: error.message 

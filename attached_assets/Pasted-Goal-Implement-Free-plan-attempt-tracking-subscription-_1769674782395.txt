@@ -1,0 +1,92 @@
+Goal:
+Implement Free plan attempt tracking + subscription status sync between Shopify and Replit DB.
+
+Context:
+We already store customers in the "customers" table.
+Fields available:
+- actual_attempts
+- used_attempt
+- subscription_status
+- plan_name
+- subscription_interval
+- subscription_plan_price
+- subscription_id
+
+Free plan rules:
+- Free plan gives 3 total attempts
+- actual_attempts = 3
+- used_attempt starts at 0
+- subscription_status = "active"
+- Each time a user completes all 12 steps → increment used_attempt by 1
+- When used_attempt === actual_attempts → subscription_status becomes "inactive"
+
+Requirements:
+
+1. Customer creation logic
+When a customer is created from Shopify:
+- If no paid subscription exists → assign Free plan automatically
+- Set:
+  plan_name = "Free"
+  subscribe_plan_name = "Free"
+  subscription_status = "active"
+  actual_attempts = 3
+  used_attempt = 0
+  subscription_plan_price = 0
+- Do not overwrite existing paid subscription users
+
+2. Attempt completion API
+Create a function/service:
+completeUserAttempt(customer_id)
+
+Behavior:
+- Fetch customer
+- If subscription_status !== "active" → block action
+- Increment used_attempt by 1
+- If used_attempt >= actual_attempts:
+    subscription_status = "inactive"
+- Save updated values
+- Return updated subscription state
+
+3. Subscription status check API
+Create endpoint:
+GET /customer/:id/subscription-status
+
+Response:
+{
+  status: "active" | "inactive",
+  remaining_attempts: actual_attempts - used_attempt,
+  plan_name
+}
+
+Shopify will use this endpoint to redirect users.
+
+4. Paid subscription update logic
+When Shopify sends subscription webhook/update:
+- Update:
+  subscription_id
+  plan_name
+  subscription_interval
+  subscription_plan_price
+  subscription_status = "active"
+- Reset attempt limits based on plan
+- Do NOT keep Free limits after upgrade
+
+5. Safety rules
+- Prevent used_attempt from exceeding actual_attempts
+- All DB writes must be atomic
+- Add proper error handling
+- Keep existing UI and unrelated APIs untouched
+- Comment new logic clearly
+
+6. Optional helper
+Add utility:
+isSubscriptionActive(customer)
+
+Returns boolean based on attempts + status.
+
+Important:
+- Do not modify existing schema
+- Only extend business logic
+- Keep backward compatibility
+- Use reusable service functions
+- Add comments explaining Free plan lifecycle
