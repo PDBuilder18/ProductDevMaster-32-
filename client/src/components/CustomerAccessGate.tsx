@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
-import { Lock, AlertCircle, Loader2 } from "lucide-react";
+import { useState, useEffect, createContext, useContext } from "react";
+import { Lock, AlertCircle, Loader2, Crown, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface CustomerData {
   customer_id: string;
@@ -15,16 +16,89 @@ interface CustomerData {
   used_attempt: number;
 }
 
+interface CustomerContextType {
+  customer: CustomerData | null;
+  isDevMode: boolean;
+}
+
+const CustomerContext = createContext<CustomerContextType>({ customer: null, isDevMode: false });
+
+export function useCustomer() {
+  return useContext(CustomerContext);
+}
+
 interface CustomerAccessGateProps {
   children: React.ReactNode;
 }
 
 type AccessState = "loading" | "no_customer_id" | "not_found" | "inactive" | "expired" | "active";
 
+function CustomerInfoBanner({ customer, isDevMode }: { customer: CustomerData | null; isDevMode: boolean }) {
+  if (isDevMode && !customer) {
+    return (
+      <div className="bg-amber-50 dark:bg-amber-950 border-b border-amber-200 dark:border-amber-800 px-4 py-2">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-600" />
+            <span className="text-sm text-amber-800 dark:text-amber-200">Development Mode</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!customer) return null;
+
+  const isFree = customer.subscribe_plan_name === "Free";
+  const remainingAttempts = customer.actual_attempts - customer.used_attempt;
+
+  return (
+    <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 border-b border-blue-200 dark:border-blue-800 px-4 py-2">
+      <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          {isFree ? (
+            <Badge variant="secondary" className="bg-gray-100 dark:bg-gray-800" data-testid="badge-plan-free">
+              <Sparkles className="w-3 h-3 mr-1" />
+              Free Plan
+            </Badge>
+          ) : (
+            <Badge className="bg-purple-600" data-testid="badge-plan-paid">
+              <Crown className="w-3 h-3 mr-1" />
+              {customer.subscribe_plan_name}
+            </Badge>
+          )}
+          {customer.first_name && (
+            <span className="text-sm text-muted-foreground">
+              Welcome, {customer.first_name}!
+            </span>
+          )}
+        </div>
+        {isFree && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground" data-testid="text-remaining-attempts">
+              {remainingAttempts} of {customer.actual_attempts} uses remaining
+            </span>
+            <Button 
+              size="sm" 
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => window.parent.postMessage({ type: "UPGRADE_SUBSCRIPTION" }, "*")}
+              data-testid="button-upgrade-banner"
+            >
+              Upgrade
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
   const [accessState, setAccessState] = useState<AccessState>("loading");
   const [customerData, setCustomerData] = useState<CustomerData | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
+  const [isDevMode, setIsDevMode] = useState(false);
 
   useEffect(() => {
     const pathname = window.location.pathname;
@@ -39,6 +113,7 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
     const isInIframe = window.self !== window.top;
     
     if (import.meta.env.DEV && isInIframe && !customerIdParam) {
+      setIsDevMode(true);
       setAccessState("active");
       return;
     }
@@ -127,8 +202,6 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
   }
 
   if (accessState === "inactive") {
-    const remainingAttempts = customerData ? customerData.actual_attempts - customerData.used_attempt : 0;
-    
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 via-purple-500 to-purple-600">
         <Card className="w-full max-w-md mx-4">
@@ -179,7 +252,16 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <CustomerContext.Provider value={{ customer: customerData, isDevMode }}>
+      <div className="flex flex-col min-h-screen">
+        <CustomerInfoBanner customer={customerData} isDevMode={isDevMode} />
+        <div className="flex-1">
+          {children}
+        </div>
+      </div>
+    </CustomerContext.Provider>
+  );
 }
 
 export function useCustomerId(): string | null {
