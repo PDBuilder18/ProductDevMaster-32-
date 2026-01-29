@@ -1,8 +1,10 @@
 import { useState, useEffect, createContext, useContext } from "react";
-import { Lock, AlertCircle, Loader2, Crown, Sparkles } from "lucide-react";
+import { Lock, AlertCircle, Loader2, Crown, Sparkles, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+
+const SHOPIFY_ACCOUNT_URL = import.meta.env.VITE_SHOPIFY_ACCOUNT_URL || "https://pd-test-7300.myshopify.com/account";
 
 interface CustomerData {
   customer_id: string;
@@ -73,22 +75,22 @@ function CustomerInfoBanner({ customer, isDevMode }: { customer: CustomerData | 
             </span>
           )}
         </div>
-        {isFree && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {isFree && (
             <span className="text-sm text-muted-foreground" data-testid="text-remaining-attempts">
               {remainingAttempts} of {customer.actual_attempts} uses remaining
             </span>
-            <Button 
-              size="sm" 
-              variant="outline"
-              className="h-7 text-xs"
-              onClick={() => window.parent.postMessage({ type: "UPGRADE_SUBSCRIPTION" }, "*")}
-              data-testid="button-upgrade-banner"
-            >
-              Upgrade
-            </Button>
-          </div>
-        )}
+          )}
+          <Button 
+            size="icon" 
+            variant="ghost"
+            className="h-8 w-8"
+            onClick={() => window.open(SHOPIFY_ACCOUNT_URL, "_blank")}
+            data-testid="button-account"
+          >
+            <User className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );
