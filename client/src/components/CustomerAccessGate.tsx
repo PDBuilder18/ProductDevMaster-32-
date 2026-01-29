@@ -33,13 +33,15 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
       return;
     }
 
-    if (import.meta.env.DEV) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const customerIdParam = urlParams.get("customer_id");
+    
+    const isInIframe = window.self !== window.top;
+    
+    if (import.meta.env.DEV && isInIframe && !customerIdParam) {
       setAccessState("active");
       return;
     }
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const customerIdParam = urlParams.get("customer_id");
 
     if (!customerIdParam) {
       setAccessState("no_customer_id");
