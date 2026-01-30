@@ -10,16 +10,15 @@ import type {
   WorkflowData
 } from "@shared/schema";
 
-// Using Llama 3 via OpenRouter (Replit AI Integrations - no API key required)
+// Using direct OpenAI API
 const openai = new OpenAI({ 
-  baseURL: process.env.AI_INTEGRATIONS_OPENROUTER_BASE_URL,
-  apiKey: process.env.AI_INTEGRATIONS_OPENROUTER_API_KEY
+  apiKey: process.env.OPENAI_API_KEY
 });
 
-// Llama 3.3 70B Instruct - latest Llama 3 model available via OpenRouter
-const LLAMA_MODEL = "meta-llama/llama-3.3-70b-instruct";
+// GPT-4o model for reliable structured responses
+const GPT_MODEL = "gpt-4o";
 
-// Helper function to extract JSON from Llama 3 responses (may include markdown)
+// Helper function to extract JSON from AI responses (may include markdown)
 function extractJSON(text: string): any {
   // Try to parse directly first
   try {
@@ -48,7 +47,7 @@ export class OpenAIService {
   async analyzeProblemStatement(problemStatement: string): Promise<ProblemAnalysis & { clarifyingQuestions?: string[] }> {
     try {
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
@@ -100,7 +99,7 @@ Guidelines:
       ).join('\n');
 
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
@@ -161,7 +160,7 @@ Should I ask another question or provide the final refined problem statement?`
       ).join('\n');
 
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
@@ -198,7 +197,7 @@ Please provide a refined problem statement that incorporates the insights from t
   async conductRootCauseAnalysis(problemStatement: string): Promise<RootCause> {
     try {
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
@@ -247,7 +246,7 @@ Please provide a refined problem statement that incorporates the insights from t
   async analyzeGaps(solutions: any[], problemStatement: string): Promise<string[]> {
     try {
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
@@ -288,7 +287,7 @@ Please provide a refined problem statement that incorporates the insights from t
   async generateICP(problemStatement: string): Promise<ICP[]> {
     try {
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
@@ -341,7 +340,7 @@ Please provide a refined problem statement that incorporates the insights from t
   async generateUseCase(problemStatement: string, icp: ICP | undefined): Promise<UseCase> {
     try {
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
@@ -422,7 +421,7 @@ Please provide a refined problem statement that incorporates the insights from t
   async generateProductRequirements(useCase: UseCase | undefined, rootCause: RootCause | undefined): Promise<ProductRequirements> {
     try {
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
@@ -488,7 +487,7 @@ Please provide a refined problem statement that incorporates the insights from t
   async prioritizeFeatures(features: any[], method: "RICE" | "ICE" | "MoSCoW"): Promise<any[]> {
     try {
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
@@ -570,7 +569,7 @@ Please provide a refined problem statement that incorporates the insights from t
   async conductDetailedMarketResearch(problemStatement: string): Promise<any> {
     try {
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
@@ -648,7 +647,7 @@ Please provide a refined problem statement that incorporates the insights from t
   async findExistingSolutions(problemStatement: string): Promise<any[]> {
     try {
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
@@ -803,7 +802,7 @@ Please provide a refined problem statement that incorporates the insights from t
   async generateGoToMarketStrategy(workflowData: WorkflowData): Promise<GoToMarketStrategy> {
     try {
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
@@ -1106,7 +1105,7 @@ Please provide a refined problem statement that incorporates the insights from t
   async chat(messages: Array<{ role: string; content: string }>, options?: { format?: 'json' }): Promise<string> {
     try {
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: messages as any,
       });
@@ -1137,7 +1136,7 @@ Please provide a refined problem statement that incorporates the insights from t
         : 'No prior context available.';
 
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
@@ -1219,7 +1218,7 @@ Grade this attempt according to the rubric.`
       const outputSpecText = JSON.stringify(stageDef.ai_output_spec, null, 2);
 
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
@@ -1299,7 +1298,7 @@ Generate the polished artifact for "${stageDef.title}".`
       const outputSpecText = JSON.stringify(stageDef.ai_output_spec, null, 2);
 
       const response = await openai.chat.completions.create({
-        model: LLAMA_MODEL,
+        model: GPT_MODEL,
         max_tokens: 8192,
         messages: [
           {
