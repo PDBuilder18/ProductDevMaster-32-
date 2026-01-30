@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package files first for better caching
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install ALL dependencies (including dev deps needed for build)
+RUN npm ci
 
 # Copy source code
 COPY . .
@@ -16,11 +16,17 @@ COPY . .
 # Build the application
 RUN npm run build
 
+# Remove dev dependencies to reduce image size
+RUN npm prune --production
+
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs
 RUN adduser -S appuser -u 1001
 RUN chown -R appuser:nodejs /app
 USER appuser
+
+# Set environment variable
+ENV PORT=5000
 
 # Expose port
 EXPOSE 5000
