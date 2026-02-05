@@ -1,10 +1,27 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
+import pg from "pg";
 import { storage } from "./storage";
 import { optionalAuth, validateSessionAccess, AuthRequest } from "./middleware/auth";
 import { aiRateLimitMiddleware } from "./middleware/security";
 import { verifyShopifyHmac } from "./middleware/shopify-hmac";
+
+const { Pool } = pg;
+
+// Production database pool for admin tracking (read-only queries)
+const productionDbUrl = process.env.PRODUCTION_DATABASE_URL;
+let productionPool: pg.Pool | null = null;
+
+if (productionDbUrl) {
+  productionPool = new Pool({
+    connectionString: productionDbUrl,
+    ssl: { rejectUnauthorized: false },
+    max: 5,
+    idleTimeoutMillis: 30000
+  });
+  console.log("✅ Production database pool initialized for admin tracking");
+}
 import { 
   insertSessionSchema, 
   insertFeedbackSchema,
@@ -1931,14 +1948,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return [...new Set(normalized)].filter(s => canonicalStages.includes(s));
   }
 
-  // Get comprehensive user tracking data for admin dashboard
+  // Get comprehensive user tracking data for admin dashboard (from production DB)
   app.get("/api/admin/tracking", async (req, res) => {
     try {
-      const sessions = await storage.getAllSessions();
-      const customers = await storage.getAllCustomers();
+      // Query production database for real-time data
+      if (!productionPool) {
+        return res.status(503).json({
+          success: false,
+          error: "Production database not configured"
+        });
+      }
+
+      const sessionsResult = await productionPool.query(
+        `SELECT session_id, current_stage, completed_stages, conversation_history, data, created_at, updated_at 
+         FROM sessions ORDER BY updated_at DESC`
+      );
+      const customersResult = await productionPool.query(
+        `SELECT * FROM customers ORDER BY updated_at DESC`
+      );
+
+      const sessions = sessionsResult.rows.map((row: any) => ({
+        sessionId: row.session_id,
+        currentStage: row.current_stage,
+        completedStages: row.completed_stages || [],
+        conversationHistory: row.conversation_history || [],
+        data: row.data || {},
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
+      const customers = customersResult.rows;
       
       // Create a map of customer emails to customer data
-      const customerMap = new Map(customers.map(c => [c.email, c]));
+      const customerMap = new Map(customers.map((c: any) => [c.email, c]));
       
       const allStages = canonicalStages;
       
@@ -2002,16 +2043,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get detailed tracking for a specific user/session
+  // Get detailed tracking for a specific user/session (from production DB)
   app.get("/api/admin/tracking/:sessionId", async (req, res) => {
     try {
-      const session = await storage.getSession(req.params.sessionId);
-      if (!session) {
+      if (!productionPool) {
+        return res.status(503).json({
+          success: false,
+          error: "Production database not configured"
+        });
+      }
+
+      const result = await productionPool.query(
+        `SELECT session_id, current_stage, completed_stages, conversation_history, data, created_at, updated_at 
+         FROM sessions WHERE session_id = $1`,
+        [req.params.sessionId]
+      );
+
+      if (result.rows.length === 0) {
         return res.status(404).json({ 
           success: false, 
           error: "Session not found" 
         });
       }
+
+      const row = result.rows[0];
+      const session = {
+        sessionId: row.session_id,
+        currentStage: row.current_stage,
+        completedStages: row.completed_stages || [],
+        conversationHistory: row.conversation_history || [],
+        data: row.data || {},
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      };
       
       const allStages = canonicalStages;
       
@@ -2061,12 +2125,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get customer tracking with subscription details
+  // Get customer tracking with subscription details (from production DB)
   app.get("/api/admin/customers-tracking", async (req, res) => {
     try {
-      const customers = await storage.getAllCustomers();
+      if (!productionPool) {
+        return res.status(503).json({
+          success: false,
+          error: "Production database not configured"
+        });
+      }
+
+      const result = await productionPool.query(
+        `SELECT * FROM customers ORDER BY updated_at DESC`
+      );
+
+      const customers = result.rows.map((row: any) => ({
+        id: row.id,
+        customerId: row.customer_id,
+        email: row.email,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        subscriptionId: row.subscription_id,
+        subscriptionStatus: row.subscription_status,
+        subscriptionInterval: row.subscription_interval,
+        planName: row.plan_name,
+        subscribePlanName: row.subscribe_plan_name,
+        subscriptionPlanPrice: row.subscription_plan_price,
+        actualAttempts: row.actual_attempts,
+        usedAttempt: row.used_attempt,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
       
-      const customerTracking = customers.map(c => ({
+      const customerTracking = customers.map((c: any) => ({
         id: c.id,
         customerId: c.customerId,
         email: c.email,
