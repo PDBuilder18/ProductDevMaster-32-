@@ -8,6 +8,7 @@ import Conversation from "@/pages/conversation";
 import LearningPage from "@/pages/learning";
 import AdminPage from "@/pages/AdminPage";
 import { AdminFeedbackPage } from "@/pages/admin-feedback";
+import AdminTrackingPage from "@/pages/admin-tracking";
 import { FiveWhysDemo } from "@/components/visualization/FiveWhysDemo";
 import PitchDeck from "@/pages/pitch-deck";
 import TermsOfUse from "@/pages/terms-of-use";
@@ -66,6 +67,7 @@ function Router() {
       <Route path="/pitch-deck" component={ProtectedPitchDeck} />
       <Route path="/admin" component={AdminPage} />
       <Route path="/admin/feedback" component={AdminFeedbackPage} />
+      <Route path="/admin/tracking" component={AdminTrackingPage} />
       <Route component={NotFound} />
     </Switch>
   );

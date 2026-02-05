@@ -1883,6 +1883,234 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(200).json({ ok: true });
   });
 
+  // ===== ADMIN TRACKING ENDPOINTS =====
+  
+  // Canonical stages from learningStages.ts
+  const canonicalStages = [
+    'think-like-a-founder',
+    'problem-definition',
+    'market-research',
+    'root-cause',
+    'existing-solutions',
+    'customer-profile',
+    'use-case',
+    'requirements',
+    'prioritization',
+    'export-document',
+    'feedback'
+  ];
+  
+  // Map legacy stage IDs to canonical IDs (comprehensive mapping)
+  const legacyStageMap: Record<string, string> = {
+    // Problem-related legacy stages
+    'problem-discovery': 'problem-definition',
+    'problem-analysis': 'problem-definition',
+    'problem': 'problem-definition',
+    // Customer-related legacy stages  
+    'icp': 'customer-profile',
+    'icp-definition': 'customer-profile',
+    'customer-interview': 'customer-profile',
+    'customer': 'customer-profile',
+    // Requirements-related legacy stages
+    'product-requirements': 'requirements',
+    'mvp-scope': 'requirements',
+    'mvp': 'requirements',
+    // Other mappings
+    'prototype': 'prioritization',
+    'user-testing': 'feedback',
+    'product-market-fit': 'feedback',
+    'export': 'export-document'
+  };
+  
+  function normalizeStage(stage: string): string {
+    return legacyStageMap[stage] || stage;
+  }
+  
+  function normalizeCompletedStages(stages: string[]): string[] {
+    const normalized = stages.map(normalizeStage);
+    return [...new Set(normalized)].filter(s => canonicalStages.includes(s));
+  }
+
+  // Get comprehensive user tracking data for admin dashboard
+  app.get("/api/admin/tracking", async (req, res) => {
+    try {
+      const sessions = await storage.getAllSessions();
+      const customers = await storage.getAllCustomers();
+      
+      // Create a map of customer emails to customer data
+      const customerMap = new Map(customers.map(c => [c.email, c]));
+      
+      const allStages = canonicalStages;
+      
+      // Combine session and customer data for tracking
+      const trackingData = sessions.map(session => {
+        const normalizedCompleted = normalizeCompletedStages(session.completedStages || []);
+        const normalizedCurrent = normalizeStage(session.currentStage || 'problem-definition');
+        const completedCount = normalizedCompleted.length;
+        const currentStageIndex = allStages.indexOf(normalizedCurrent);
+        const progressPercent = Math.round((completedCount / allStages.length) * 100);
+        
+        return {
+          sessionId: session.sessionId,
+          currentStage: session.currentStage,
+          completedStages: session.completedStages || [],
+          progressPercent,
+          stagesCompleted: completedCount,
+          totalStages: allStages.length,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          lastActivity: session.updatedAt,
+          data: session.data || {}
+        };
+      });
+      
+      // Calculate summary stats using normalized data
+      const totalUsers = sessions.length;
+      const activeToday = sessions.filter(s => {
+        const updated = new Date(s.updatedAt);
+        const today = new Date();
+        return updated.toDateString() === today.toDateString();
+      }).length;
+      // Use normalized completed stages for accurate completion count
+      const completedWorkflows = trackingData.filter(t => 
+        t.stagesCompleted >= allStages.length
+      ).length;
+      const avgProgress = totalUsers > 0 
+        ? Math.round(trackingData.reduce((sum, t) => sum + t.progressPercent, 0) / totalUsers)
+        : 0;
+      
+      res.json({
+        success: true,
+        summary: {
+          totalUsers,
+          activeToday,
+          completedWorkflows,
+          avgProgress,
+          totalCustomers: customers.length
+        },
+        stages: allStages,
+        users: trackingData.sort((a, b) => 
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )
+      });
+    } catch (error: any) {
+      console.error('Admin tracking error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get detailed tracking for a specific user/session
+  app.get("/api/admin/tracking/:sessionId", async (req, res) => {
+    try {
+      const session = await storage.getSession(req.params.sessionId);
+      if (!session) {
+        return res.status(404).json({ 
+          success: false, 
+          error: "Session not found" 
+        });
+      }
+      
+      const allStages = canonicalStages;
+      
+      const normalizedCompleted = normalizeCompletedStages(session.completedStages || []);
+      const normalizedCurrent = normalizeStage(session.currentStage || 'problem-definition');
+      const completedCount = normalizedCompleted.length;
+      const progressPercent = Math.round((completedCount / allStages.length) * 100);
+      
+      // Build stage-by-stage detail
+      const stageDetails = allStages.map((stage, index) => {
+        const isCompleted = normalizedCompleted.includes(stage);
+        const isCurrent = normalizedCurrent === stage;
+        const stageData = (session.data as any)?.[stage.replace(/-/g, '')] || 
+                          (session.data as any)?.[stage] || null;
+        
+        return {
+          stage,
+          index: index + 1,
+          status: isCompleted ? 'completed' : (isCurrent ? 'in_progress' : 'pending'),
+          hasData: stageData !== null,
+          data: stageData
+        };
+      });
+      
+      res.json({
+        success: true,
+        session: {
+          sessionId: session.sessionId,
+          currentStage: session.currentStage,
+          completedStages: session.completedStages || [],
+          progressPercent,
+          stagesCompleted: completedCount,
+          totalStages: allStages.length,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          conversationHistory: session.conversationHistory || [],
+          stageDetails,
+          workflowData: session.data || {}
+        }
+      });
+    } catch (error: any) {
+      console.error('Admin tracking detail error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get customer tracking with subscription details
+  app.get("/api/admin/customers-tracking", async (req, res) => {
+    try {
+      const customers = await storage.getAllCustomers();
+      
+      const customerTracking = customers.map(c => ({
+        id: c.id,
+        customerId: c.customerId,
+        email: c.email,
+        name: `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
+        subscriptionStatus: c.subscriptionStatus || 'none',
+        planName: c.planName || c.subscribePlanName || 'Free',
+        attemptsUsed: c.usedAttempt || 0,
+        attemptsTotal: c.actualAttempts || 0,
+        attemptsRemaining: Math.max(0, (c.actualAttempts || 0) - (c.usedAttempt || 0)),
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt
+      }));
+      
+      // Summary stats
+      const totalCustomers = customers.length;
+      const activeSubscriptions = customers.filter(c => c.subscriptionStatus === 'active').length;
+      const exhaustedAttempts = customers.filter(c => 
+        (c.usedAttempt || 0) >= (c.actualAttempts || 0) && (c.actualAttempts || 0) > 0
+      ).length;
+      
+      res.json({
+        success: true,
+        summary: {
+          totalCustomers,
+          activeSubscriptions,
+          exhaustedAttempts,
+          pausedSubscriptions: customers.filter(c => c.subscriptionStatus === 'paused').length,
+          cancelledSubscriptions: customers.filter(c => c.subscriptionStatus === 'cancelled').length
+        },
+        customers: customerTracking.sort((a, b) => 
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        )
+      });
+    } catch (error: any) {
+      console.error('Admin customers tracking error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // ===== END ADMIN TRACKING ENDPOINTS =====
+
   // Health check endpoint with detailed service status
   app.get("/api/health", async (req, res) => {
     try {
