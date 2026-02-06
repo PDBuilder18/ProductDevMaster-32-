@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-const SHOPIFY_ACCOUNT_URL = import.meta.env.VITE_SHOPIFY_ACCOUNT_URL || "https://pd-test-7300.myshopify.com/account";
+const SHOPIFY_ACCOUNT_URL = import.meta.env.VITE_SHOPIFY_ACCOUNT_URL || "https://pdbuilder.com/account";
 const SHOPIFY_UPGRADE_URL = import.meta.env.VITE_SHOPIFY_UPGRADE_URL || "https://pd-test-7300.myshopify.com/products/basic?_pos=1&_sid=c1123c2ae&_ss=r";
 const SHOPIFY_SUBSCRIPTIONS_URL = import.meta.env.VITE_SHOPIFY_SUBSCRIPTIONS_URL || "https://pd-test-7300.myshopify.com/pages/subscriptions";
 
