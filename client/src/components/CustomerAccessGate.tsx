@@ -263,7 +263,7 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
             <Button 
               variant="default" 
               className="bg-purple-600 hover:bg-purple-700"
-              onClick={() => window.open("https://pdbuilder.com/products/core", "_blank")}
+              onClick={() => window.open("https://pdbuilder.com/pages/subscriptions", "_blank")}
               data-testid="button-resume"
             >
               Manage Subscription
