@@ -31,6 +31,7 @@ export function Step10Feedback() {
   const { sessionId, completeStep, goToStep, startNewSession } = useWorkflow();
   const { toast } = useToast();
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isStartingNew, setIsStartingNew] = useState(false);
 
   const form = useForm<FeedbackForm>({
     resolver: zodResolver(feedbackSchema),
@@ -157,10 +158,16 @@ export function Step10Feedback() {
 
               <div className="mt-6 space-y-3">
                 <Button
-                  onClick={startNewSession}
+                  onClick={() => {
+                    if (isStartingNew) return;
+                    setIsStartingNew(true);
+                    startNewSession();
+                  }}
+                  disabled={isStartingNew}
                   className="bg-primary-600 hover:bg-primary-700"
+                  data-testid="button-start-new-session"
                 >
-                  Start New Session
+                  {isStartingNew ? "Starting..." : "Start New Session"}
                 </Button>
                 <p className="text-xs text-gray-500">
                   Ready to develop another MVP?

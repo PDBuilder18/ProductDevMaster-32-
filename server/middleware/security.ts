@@ -123,7 +123,7 @@ export function validateRequest(req: Request, res: Response, next: NextFunction)
   const isWorkflowEndpoint = workflowEndpoints.some(endpoint => req.path.includes(endpoint));
   
   // Skip body validation for endpoints that don't require a request body
-  const noBodyRequiredEndpoints = ['/complete-attempt'];
+  const noBodyRequiredEndpoints = ['/complete-attempt', '/increment-attempt'];
   const isNoBodyEndpoint = noBodyRequiredEndpoints.some(endpoint => req.path.includes(endpoint));
   
   // Skip validation for multipart/form-data requests (file uploads)

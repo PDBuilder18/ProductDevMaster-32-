@@ -408,6 +408,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Increment used attempt for a customer after completing a full workflow cycle
+  app.post("/api/customers/:id/increment-attempt", async (req, res) => {
+    try {
+      const customerId = req.params.id;
+      
+      const existingCustomer = await storage.getCustomer(customerId);
+      if (!existingCustomer) {
+        return res.status(404).json({ 
+          success: false, 
+          error: "Customer not found" 
+        });
+      }
+      
+      const newUsedAttempt = (existingCustomer.usedAttempt || 0) + 1;
+      const actualAttempts = existingCustomer.actualAttempts || 3;
+      
+      const updateData: any = { usedAttempt: newUsedAttempt };
+      
+      if (newUsedAttempt >= actualAttempts) {
+        updateData.subscriptionStatus = "expired";
+      }
+      
+      const updatedCustomer = await storage.updateCustomer(customerId, updateData);
+      
+      console.log(`Customer ${customerId}: used_attempt incremented to ${newUsedAttempt}/${actualAttempts}${newUsedAttempt >= actualAttempts ? ' - subscription expired' : ''}`);
+      
+      res.json({
+        success: true,
+        message: "Attempt incremented successfully",
+        data: customerToSnakeCase(updatedCustomer)
+      });
+    } catch (error: any) {
+      console.error("Increment attempt error:", error.message || 'Unknown error');
+      res.status(400).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
   // Delete Customer - DELETE /api/customers/:id
   app.delete("/api/customers/:id", async (req, res) => {
     try {

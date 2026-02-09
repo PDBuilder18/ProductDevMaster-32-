@@ -141,6 +141,17 @@ export function useWorkflow() {
   };
 
   const startNewSession = async () => {
+    // Increment used_attempt for the customer before creating new session
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const customerId = urlParams.get("customer_id");
+      if (customerId) {
+        await apiRequest("POST", `/api/customers/${customerId}/increment-attempt`, {});
+      }
+    } catch (error) {
+      console.error("Failed to increment attempt:", error);
+    }
+
     // Generate new session ID
     const newSessionId = nanoid();
     
