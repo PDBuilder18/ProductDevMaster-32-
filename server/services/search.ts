@@ -6,8 +6,10 @@ interface MarketResearchFindings {
     source: string;
     title: string;
     relevance: string;
+    url?: string;
   }>;
   confidence: number;
+  dataSource: 'search-api' | 'ai-generated' | 'fallback';
 }
 
 interface ExistingSolution {
@@ -17,6 +19,7 @@ interface ExistingSolution {
   cons: string[];
   pricing?: string;
   targetAudience?: string;
+  sourceUrl?: string;
 }
 
 export class SearchService {
@@ -63,11 +66,11 @@ export class SearchService {
       const competitorResults = await this.searchWeb(`"${problemStatement}" solutions tools companies`);
       const trendsResults = await this.searchWeb(`"${problemStatement}" trends 2024 industry report`);
 
-      // If we have search results, extract insights
       if (marketSizeResults.length > 0 || competitorResults.length > 0 || trendsResults.length > 0) {
         const marketSize = this.extractMarketSize(marketSizeResults);
         const competitors = this.extractCompetitors(competitorResults);
         const trends = this.extractTrends(trendsResults);
+        const references = this.extractCitations([...marketSizeResults, ...competitorResults, ...trendsResults]);
 
         const confidence = Math.min(
           (marketSizeResults.length + competitorResults.length + trendsResults.length) / 30,
@@ -78,19 +81,20 @@ export class SearchService {
           marketSize,
           competitors,
           trends,
-          references: [], // No references available from search APIs
+          references,
           confidence,
+          dataSource: 'search-api' as const,
         };
       }
     } catch (searchError) {
       console.log("Search API failed, using AI-powered market research:", searchError);
     }
 
-    // Use AI-powered detailed market research when search APIs are not available
     try {
       const { openaiService } = await import('./openai.js');
       console.log("Using AI-powered detailed market research");
-      return await openaiService.conductDetailedMarketResearch(problemStatement);
+      const aiResult = await openaiService.conductDetailedMarketResearch(problemStatement);
+      return { ...aiResult, dataSource: 'ai-generated' as const };
     } catch (error) {
       console.log("AI market research failed, providing research framework:", error);
       return {
@@ -124,6 +128,7 @@ export class SearchService {
           }
         ],
         confidence: 0.4,
+        dataSource: 'fallback' as const,
       };
     }
   }
@@ -303,11 +308,36 @@ export class SearchService {
           pros: ['Available solution'],
           cons: ['May not fit exact needs'],
           targetAudience: 'General users',
+          sourceUrl: url || undefined,
         });
       }
     }
     
     return solutions;
+  }
+
+  private extractCitations(results: any[]): Array<{ source: string; title: string; relevance: string; url?: string }> {
+    const seen = new Set<string>();
+    const citations: Array<{ source: string; title: string; relevance: string; url?: string }> = [];
+
+    for (const result of results.slice(0, 10)) {
+      const url = result.link || result.url || '';
+      const title = result.title || result.name || '';
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+
+      const domain = url.replace(/^https?:\/\//, '').split('/')[0].replace('www.', '');
+      citations.push({
+        source: domain,
+        title: title,
+        relevance: (result.snippet || result.description || '').slice(0, 150),
+        url: url,
+      });
+
+      if (citations.length >= 5) break;
+    }
+
+    return citations;
   }
 }
 

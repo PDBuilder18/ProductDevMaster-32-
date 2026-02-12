@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/queryClient";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-import { Search, ArrowRight, ArrowLeft, CheckCircle, XCircle, CircleDashed, HelpCircle } from "lucide-react";
+import { Search, ArrowRight, ArrowLeft, CheckCircle, XCircle, CircleDashed, HelpCircle, AlertTriangle, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ExistingSolution {
@@ -18,6 +18,7 @@ interface ExistingSolution {
   disclaimer?: string;
   relevanceScore?: number;
   verificationLevel?: string;
+  sourceUrl?: string;
 }
 
 interface ExistingSolutionsData {
@@ -110,6 +111,23 @@ export function Step4ExistingSolutions() {
             </Button>
           )}
 
+          {/* AI Disclaimer */}
+          {data?.solutions && data.solutions.length > 0 && (
+            <div className="bg-amber-50 border border-amber-300 rounded-lg p-4" data-testid="disclaimer-solutions-ai">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h4 className="text-sm font-semibold text-amber-900">AI-Generated Competitive Analysis — Verify Independently</h4>
+                  <p className="text-sm text-amber-800 mt-1">
+                    Competitor names, descriptions, pricing, and feature details below may be AI-generated estimates. 
+                    Some companies listed may have changed their offerings or may not be accurate. 
+                    Always verify competitor information directly before including it in business plans or investor materials.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Existing Solutions */}
           {data?.solutions && data.solutions.length > 0 && (
             <div className="space-y-4">
@@ -117,10 +135,27 @@ export function Step4ExistingSolutions() {
               {data.solutions.map((solution: ExistingSolution, index: number) => (
                 <Card key={index} className="border-gray-200">
                   <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{solution.name}</CardTitle>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-lg">{solution.name}</CardTitle>
+                        {solution.sourceUrl && (
+                          <a
+                            href={solution.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 underline flex items-center gap-1"
+                            data-testid={`link-solution-source-${index}`}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Source
+                          </a>
+                        )}
+                      </div>
                       {solution.pricing && (
-                        <Badge variant="secondary">{solution.pricing}</Badge>
+                        <Badge variant="secondary">
+                          {solution.pricing}
+                          <span className="ml-1 text-amber-600 text-[10px]">(verify)</span>
+                        </Badge>
                       )}
                     </div>
                     <p className="text-sm text-gray-600">{solution.description}</p>
@@ -193,6 +228,15 @@ export function Step4ExistingSolutions() {
                 </ul>
               </CardContent>
             </Card>
+          )}
+
+          {data?.solutions && data.solutions.length > 0 && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3" data-testid="disclaimer-verify-solutions">
+              <p className="text-xs text-gray-600">
+                <span className="font-semibold">Note:</span> Pricing, feature lists, and company details above are directional estimates and may be outdated or approximate. 
+                Visit each competitor's website directly to confirm current information before making strategic decisions.
+              </p>
+            </div>
           )}
 
           {data?.solutions && data.solutions.length === 0 && (
