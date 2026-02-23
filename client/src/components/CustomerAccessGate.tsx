@@ -158,8 +158,15 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
       switch (data.subscription_status) {
         case "active":
           if (isFree && data.used_attempt >= data.actual_attempts) {
+            sessionStorage.setItem("pdbuilder-was-free-exhausted", "true");
             setAccessState("free_exhausted");
           } else {
+            // Detect upgrade: user was on exhausted free plan, now active on paid plan
+            const wasExhausted = sessionStorage.getItem("pdbuilder-was-free-exhausted");
+            if (!isFree && wasExhausted) {
+              sessionStorage.removeItem("pdbuilder-was-free-exhausted");
+              localStorage.removeItem("pdbuilder-session");
+            }
             setAccessState("active");
           }
           break;
@@ -171,6 +178,7 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
           break;
         case "expired":
           if (isFree) {
+            sessionStorage.setItem("pdbuilder-was-free-exhausted", "true");
             setAccessState("free_exhausted");
           } else {
             setAccessState("expired");
