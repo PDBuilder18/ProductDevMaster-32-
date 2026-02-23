@@ -420,6 +420,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: "Customer not found" 
         });
       }
+
+      // Paid plans have unlimited attempts - skip incrementing
+      const planName = existingCustomer.subscribePlanName || existingCustomer.planName || "Free";
+      const isFree = planName === "Free";
+      
+      if (!isFree) {
+        console.log(`Customer ${customerId}: paid plan (${planName}) - unlimited attempts, skipping increment`);
+        return res.json({
+          success: true,
+          message: "Paid plan - unlimited attempts",
+          data: customerToSnakeCase(existingCustomer)
+        });
+      }
       
       const newUsedAttempt = (existingCustomer.usedAttempt || 0) + 1;
       const actualAttempts = existingCustomer.actualAttempts || 3;

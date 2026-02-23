@@ -1,0 +1,110 @@
+🔒 STRICT FIX REQUIRED – DO NOT CHANGE UI OR OTHER FUNCTIONALITY
+
+I have a Shopify embedded app running inside an iframe:
+
+customer_id is passed via query parameter.
+
+Shopify customer is logged in.
+
+App loads correctly initially.
+
+🚨 CURRENT PROBLEM
+
+When the user clicks “Start New Session”:
+
+The app reloads.
+
+It shows “Access Required – Please access this app through your Shopify store”.
+
+Even though:
+
+The customer is still logged into Shopify.
+
+The app is still inside the iframe.
+
+customer_id was originally passed.
+
+If I manually reload the page afterward, everything works again.
+
+So this is NOT a Shopify login issue.
+This is a session persistence or redirect issue triggered specifically by the “Start New Session” action.
+
+🚨 SECOND ISSUE
+
+For Free Plan:
+
+actual_attempts = 3
+
+used_attempt must increase by 1 when clicking Start New Session.
+
+When used_attempt === actual_attempts, free plan must expire.
+
+Paid plan has unlimited attempts and must NOT be affected.
+
+Current behavior:
+
+used_attempt is NOT incrementing.
+
+After reload, a new session starts but attempt count does not increase.
+
+🎯 WHAT YOU MUST FIX
+
+You must fix ONLY:
+
+Authentication/session persistence after clicking “Start New Session”.
+
+Attempt increment logic not updating properly.
+
+Race condition or redirect issue causing authentication failure.
+
+Ensure customer_id remains available after reload.
+
+🔒 STRICT RULES
+
+DO NOT:
+
+Change any UI
+
+Modify layout or styling
+
+Refactor unrelated code
+
+Change plan structure
+
+Remove iframe logic
+
+Change Shopify integration
+
+Modify paid plan behavior
+
+Alter existing business logic except where necessary to fix this bug
+
+Only fix the root cause of:
+
+Session breaking after Start New Session
+
+Attempt count not incrementing
+
+✅ EXPECTED FINAL BEHAVIOR
+
+After clicking Start New Session:
+
+used_attempt increments correctly in database.
+
+The session reloads safely.
+
+customer_id remains valid.
+
+App stays authenticated.
+
+No “Access Required” popup appears.
+
+Free plan expires exactly when attempts reach limit.
+
+Paid plan remains unlimited.
+
+Apply a minimal, precise fix.
+Do not redesign or restructure the application.
+Do not change UI.
+
+Fix only the broken session persistence and attempt increment behavior

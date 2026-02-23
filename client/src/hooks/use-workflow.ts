@@ -141,15 +141,31 @@ export function useWorkflow() {
   };
 
   const startNewSession = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const customerId = urlParams.get("customer_id");
+
     // Increment used_attempt for the customer before creating new session
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const customerId = urlParams.get("customer_id");
-      if (customerId) {
-        await apiRequest("POST", `/api/customers/${customerId}/increment-attempt`, {});
+    if (customerId) {
+      try {
+        const incrementRes = await fetch(`/api/customers/${customerId}/increment-attempt`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        const incrementResult = await incrementRes.json();
+        console.log("Attempt increment result:", incrementResult);
+
+        if (incrementResult.success && incrementResult.data) {
+          const data = incrementResult.data;
+          if (data.subscription_status === "expired") {
+            console.log("Free plan exhausted - redirecting with current params");
+            window.location.href = window.location.pathname + "?" + urlParams.toString();
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("Failed to increment attempt:", error);
       }
-    } catch (error) {
-      console.error("Failed to increment attempt:", error);
     }
 
     // Generate new session ID
@@ -169,21 +185,22 @@ export function useWorkflow() {
       });
       const newSession = await res.json();
       
-      // Update localStorage and state
+      // Update localStorage with new session
       localStorage.setItem("pdbuilder-session", newSessionId);
       setSessionId(newSessionId);
       
       // Cache the new session data
       queryClient.setQueryData([`/api/sessions/${newSessionId}`], newSession);
       
-      // Force page reload to ensure clean state
-      window.location.reload();
+      // Reload page while preserving all query parameters (including customer_id)
+      window.location.href = window.location.pathname + "?" + urlParams.toString();
     } catch (error) {
       console.error("Failed to create new session:", error);
-      // Fallback to old method
+      // Fallback: still preserve query params
       localStorage.setItem("pdbuilder-session", newSessionId);
       setSessionId(newSessionId);
       queryClient.removeQueries({ queryKey: [`/api/sessions/${sessionId}`] });
+      window.location.href = window.location.pathname + "?" + urlParams.toString();
     }
   };
 
