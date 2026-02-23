@@ -142,7 +142,7 @@ export function useWorkflow() {
 
   const startNewSession = async () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const customerId = urlParams.get("customer_id");
+    const customerId = urlParams.get("customer_id") || sessionStorage.getItem("pdbuilder-customer-id");
 
     // Increment used_attempt for the customer before creating new session
     if (customerId) {
@@ -158,7 +158,9 @@ export function useWorkflow() {
         if (incrementResult.success && incrementResult.data) {
           const data = incrementResult.data;
           if (data.subscription_status === "expired") {
-            console.log("Free plan exhausted - redirecting with current params");
+            if (customerId && !urlParams.has("customer_id")) {
+              urlParams.set("customer_id", customerId);
+            }
             window.location.href = window.location.pathname + "?" + urlParams.toString();
             return;
           }
@@ -192,6 +194,11 @@ export function useWorkflow() {
       // Cache the new session data
       queryClient.setQueryData([`/api/sessions/${newSessionId}`], newSession);
       
+      // Ensure customer_id is in the URL params for reload
+      if (customerId && !urlParams.has("customer_id")) {
+        urlParams.set("customer_id", customerId);
+      }
+      
       // Reload page while preserving all query parameters (including customer_id)
       window.location.href = window.location.pathname + "?" + urlParams.toString();
     } catch (error) {
@@ -200,6 +207,9 @@ export function useWorkflow() {
       localStorage.setItem("pdbuilder-session", newSessionId);
       setSessionId(newSessionId);
       queryClient.removeQueries({ queryKey: [`/api/sessions/${sessionId}`] });
+      if (customerId && !urlParams.has("customer_id")) {
+        urlParams.set("customer_id", customerId);
+      }
       window.location.href = window.location.pathname + "?" + urlParams.toString();
     }
   };

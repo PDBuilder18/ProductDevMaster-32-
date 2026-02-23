@@ -112,7 +112,15 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
     }
 
     const urlParams = new URLSearchParams(window.location.search);
-    const customerIdParam = urlParams.get("customer_id");
+    let customerIdParam = urlParams.get("customer_id");
+    
+    // Persist customer_id: save to sessionStorage when found in URL,
+    // restore from sessionStorage when not in URL (survives iframe reloads)
+    if (customerIdParam) {
+      sessionStorage.setItem("pdbuilder-customer-id", customerIdParam);
+    } else {
+      customerIdParam = sessionStorage.getItem("pdbuilder-customer-id");
+    }
     
     const isInIframe = window.self !== window.top;
     
@@ -144,11 +152,11 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
       const data = result.data as CustomerData;
       setCustomerData(data);
 
+      const isFree = data.subscribe_plan_name === "Free" || data.plan_name === "Free";
+
       // Check subscription status based on documented lifecycle
       switch (data.subscription_status) {
         case "active":
-          // For active users, check if free plan has exhausted attempts
-          const isFree = data.subscribe_plan_name === "Free" || data.plan_name === "Free";
           if (isFree && data.used_attempt >= data.actual_attempts) {
             setAccessState("free_exhausted");
           } else {
@@ -162,10 +170,13 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
           setAccessState("cancelled");
           break;
         case "expired":
-          setAccessState("expired");
+          if (isFree) {
+            setAccessState("free_exhausted");
+          } else {
+            setAccessState("expired");
+          }
           break;
         default:
-          // Handle null/undefined or unknown status
           setAccessState("cancelled");
       }
     } catch (error) {
@@ -339,7 +350,13 @@ export function useCustomerId(): string | null {
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    setCustomerId(urlParams.get("customer_id"));
+    let id = urlParams.get("customer_id");
+    if (id) {
+      sessionStorage.setItem("pdbuilder-customer-id", id);
+    } else {
+      id = sessionStorage.getItem("pdbuilder-customer-id");
+    }
+    setCustomerId(id);
   }, []);
 
   return customerId;
