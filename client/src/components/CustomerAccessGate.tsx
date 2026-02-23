@@ -154,19 +154,21 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
 
       const isFree = data.subscribe_plan_name === "Free" || data.plan_name === "Free";
 
+      // Detect plan upgrade: if last known plan was Free and now it's paid, clear session
+      const lastKnownPlan = localStorage.getItem("pdbuilder-last-plan");
+      if (!isFree && lastKnownPlan === "Free") {
+        localStorage.removeItem("pdbuilder-session");
+        localStorage.setItem("pdbuilder-last-plan", data.subscribe_plan_name || data.plan_name);
+      } else {
+        localStorage.setItem("pdbuilder-last-plan", isFree ? "Free" : (data.subscribe_plan_name || data.plan_name));
+      }
+
       // Check subscription status based on documented lifecycle
       switch (data.subscription_status) {
         case "active":
           if (isFree && data.used_attempt >= data.actual_attempts) {
-            sessionStorage.setItem("pdbuilder-was-free-exhausted", "true");
             setAccessState("free_exhausted");
           } else {
-            // Detect upgrade: user was on exhausted free plan, now active on paid plan
-            const wasExhausted = sessionStorage.getItem("pdbuilder-was-free-exhausted");
-            if (!isFree && wasExhausted) {
-              sessionStorage.removeItem("pdbuilder-was-free-exhausted");
-              localStorage.removeItem("pdbuilder-session");
-            }
             setAccessState("active");
           }
           break;
@@ -178,7 +180,6 @@ export function CustomerAccessGate({ children }: CustomerAccessGateProps) {
           break;
         case "expired":
           if (isFree) {
-            sessionStorage.setItem("pdbuilder-was-free-exhausted", "true");
             setAccessState("free_exhausted");
           } else {
             setAccessState("expired");

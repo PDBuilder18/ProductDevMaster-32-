@@ -1,0 +1,113 @@
+🔒 STRICT LOGIC FIX REQUIRED – DO NOT CHANGE UI OR OTHER FUNCTIONALITY
+📌 Scenario
+
+User signs up → Customer is created with 3 free attempts.
+
+User uses all 3 attempts → Free plan expires.
+
+actual_attempts = 3
+
+used_attempt increases by 1 after clicking Start New Session
+
+When actual_attempts === used_attempt (3 === 3), free plan expires.
+
+After free plan expires, user subscribes to Core (Paid) Plan.
+
+User returns back to the app.
+
+🚨 CURRENT PROBLEM
+
+After subscribing to the Core plan and returning to the app:
+
+The app starts from Step 10 (previous session step).
+
+It does NOT start from Step 1.
+
+User is forced to:
+
+Submit feedback
+
+Click Start New Session
+
+Then it starts a new session.
+
+Additionally:
+
+When clicking Start New Session, it still behaves as if:
+
+Free plan limit is reached
+
+Previous session limit is still active
+
+Even though user has an active paid subscription now.
+
+This is incorrect.
+
+✅ EXPECTED BEHAVIOR
+
+After subscribing to the Core plan:
+
+App must detect active paid subscription.
+
+Previous session state must NOT be restored.
+
+It must automatically start from Step 1.
+
+It must NOT require submitting feedback.
+
+It must NOT require manually clicking Start New Session.
+
+Free plan expiration state must no longer affect the user.
+
+Paid plan must allow unlimited sessions.
+
+🎯 WHAT NEEDS TO BE FIXED
+
+Fix only the logic where:
+
+Previous step (Step 10) is being restored after subscription.
+
+Expired free plan state is still being considered after upgrade.
+
+Session reset is not triggered after successful subscription.
+
+Ensure that:
+
+After subscription confirmation, session resets properly.
+
+Free plan limits are ignored if paid plan is active.
+
+Flow always starts from Step 1 after upgrade.
+
+🔒 IMPORTANT
+
+DO NOT:
+
+Change UI
+
+Modify layout
+
+Change styling
+
+Refactor unrelated logic
+
+Change how attempts are calculated
+
+Modify subscription structure
+
+Break free plan logic for non-paid users
+
+ONLY fix the incorrect post-subscription session and plan handling logic.
+
+✅ FINAL EXPECTED RESULT
+
+Free plan used completely → Upgrade to Core plan → Return to app →
+
+✔ Paid subscription validated
+✔ Free plan expiration ignored
+✔ Previous session cleared
+✔ App starts from Step 1 automatically
+✔ Unlimited sessions allowed
+✔ No manual reset required
+
+Apply a minimal and precise fix.
